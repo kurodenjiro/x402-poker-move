@@ -29,6 +29,18 @@ export const PAYMENT_CONFIG = {
 };
 
 /**
+ * Pad an Ethereum-style address (40 chars) to Aptos/Movement format (64 chars)
+ * @param address - The address to pad (with or without 0x prefix)
+ * @returns Padded address in Aptos format (0x + 64 hex chars)
+ */
+export function padAddressToAptos(address: string): string {
+    // Remove 0x prefix if present
+    const cleanAddress = address.replace(/^0x/i, '');
+    // Pad with leading zeros to 64 characters and add back 0x prefix
+    return '0x' + cleanAddress.padStart(64, '0');
+}
+
+/**
  * Calculate payment amount in MOVE tokens based on stack and participants
  * @param startingStack - The starting stack for each player
  * @param numParticipants - Number of non-empty seats

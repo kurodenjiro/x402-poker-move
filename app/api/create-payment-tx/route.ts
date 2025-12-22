@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { aptos } from "@/lib/movement";
+import { aptos, padAddressToAptos } from "@/lib/movement";
 
 export async function POST(request: NextRequest) {
     try {
@@ -16,11 +16,15 @@ export async function POST(request: NextRequest) {
             amount: (amountInOctas / 100_000_000).toFixed(4) + " MOVE",
         });
 
+        // Pad addresses to 64 characters (Aptos format)
+        const paddedSenderAddress = padAddressToAptos(senderAddress);
+        const paddedRecipientAddress = padAddressToAptos(recipientAddress);
+
         // Check sender's balance
         let balance = 0;
         try {
             balance = await aptos.getAccountAPTAmount({
-                accountAddress: senderAddress,
+                accountAddress: paddedSenderAddress,
             });
         } catch (error) {
             console.error("Failed to fetch balance:", error);
@@ -59,10 +63,10 @@ export async function POST(request: NextRequest) {
 
         // Build the transaction payload
         const transaction = await aptos.transaction.build.simple({
-            sender: senderAddress,
+            sender: paddedSenderAddress,
             data: {
                 function: "0x1::aptos_account::transfer",
-                functionArguments: [recipientAddress, amountInOctas],
+                functionArguments: [paddedRecipientAddress, amountInOctas],
             },
         });
 

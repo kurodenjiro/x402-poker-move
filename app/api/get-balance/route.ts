@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { aptos } from "@/lib/movement";
+import { aptos, padAddressToAptos } from "@/lib/movement";
 
 export async function GET(request: NextRequest) {
     try {
@@ -13,9 +13,12 @@ export async function GET(request: NextRequest) {
             );
         }
 
+        // Pad address to 64 characters (Aptos format)
+        const paddedAddress = padAddressToAptos(address);
+
         // Fetch balance from Movement blockchain
         const balance = await aptos.getAccountAPTAmount({
-            accountAddress: address,
+            accountAddress: paddedAddress,
         });
 
         // Convert octas to MOVE (1 MOVE = 100,000,000 octas)

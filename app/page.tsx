@@ -112,7 +112,8 @@ export default function Home() {
   };
 
   const canStartGame =
-    seatSelections.filter((seat) => seat !== null).length === 6;
+    seatSelections.filter((seat) => seat !== null).length === 6 &&
+    seatSelections.some((seat) => seat !== null && seat.type !== "empty");
 
   // Count non-empty participants for payment calculation
   const numParticipants = seatSelections.filter(
@@ -127,6 +128,15 @@ export default function Home() {
     const filledSeats = seatSelections.filter((seat) => seat !== null);
     if (filledSeats.length !== 6) {
       setError("Please configure all 6 seats");
+      return;
+    }
+
+    // Check if there's at least one AI player
+    const aiPlayers = seatSelections.filter(
+      (seat) => seat !== null && seat.type !== "empty"
+    );
+    if (aiPlayers.length === 0) {
+      setError("At least one seat must have an AI player");
       return;
     }
 
