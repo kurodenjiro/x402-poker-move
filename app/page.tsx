@@ -14,6 +14,8 @@ import {
   Minus,
 } from "@phosphor-icons/react";
 import AnimatedFramedLink from "./components/AnimatedFramedLink";
+import WalletButton from "./components/WalletButton";
+import PaymentModal from "./components/PaymentModal";
 import { useEffect, useState } from "react";
 import Footer from "./components/Footer";
 import { useRouter } from "next/navigation";
@@ -61,28 +63,15 @@ export default function Home() {
   const [isStartingGame, setIsStartingGame] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalPosition, setModalPosition] = useState<number | null>(null);
-  const [provider, setProvider] = useState<AIProvider>("openrouter");
-  const [apiKey, setApiKey] = useState("");
+  // Provider and API key now configured server-side via environment variables
   const [startingStack, setStartingStack] = useState(2000);
   const [numberOfHands, setNumberOfHands] = useState(10);
   const [error, setError] = useState<string | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentTxHash, setPaymentTxHash] = useState<string | null>(null);
 
   useEffect(() => {
     fetchModels();
-    // Load saved API key and provider from localStorage
-    const savedApiKey = localStorage.getItem("llm-poker-api-key");
-    const savedProvider = localStorage.getItem(
-      "llm-poker-provider"
-    ) as AIProvider | null;
-    if (savedApiKey) {
-      setApiKey(savedApiKey);
-    }
-    if (
-      savedProvider &&
-      (savedProvider === "openrouter" || savedProvider === "vercel-ai-gateway")
-    ) {
-      setProvider(savedProvider);
-    }
   }, []);
 
   const fetchModels = async () => {
@@ -123,26 +112,21 @@ export default function Home() {
   };
 
   const canStartGame =
-    seatSelections.filter((seat) => seat !== null).length === 6 &&
-    apiKey.trim() !== "";
+    seatSelections.filter((seat) => seat !== null).length === 6;
 
-  const startGame = async () => {
-    console.log("[startGame] Function called", { canStartGame });
+  // Count non-empty participants for payment calculation
+  const numParticipants = seatSelections.filter(
+    (seat) => seat && seat.type !== "empty"
+  ).length;
+
+  const initiateGameStart = () => {
+    console.log("[initiateGameStart] Function called", { canStartGame });
     if (!canStartGame) return;
 
     // Validation - count filled seats (not empty)
     const filledSeats = seatSelections.filter((seat) => seat !== null);
     if (filledSeats.length !== 6) {
       setError("Please configure all 6 seats");
-      return;
-    }
-
-    if (!apiKey.trim()) {
-      setError(
-        `Please provide your ${
-          provider === "vercel-ai-gateway" ? "Vercel AI Gateway" : "OpenRouter"
-        } API key`
-      );
       return;
     }
 
@@ -156,9 +140,15 @@ export default function Home() {
       return;
     }
 
-    console.log("[startGame] Validation passed, setting loading state");
-    setIsStartingGame(true);
+    // Show payment modal instead of starting directly
     setError(null);
+    setShowPaymentModal(true);
+  };
+
+  const startGame = async () => {
+    console.log("[startGame] Starting after payment");
+    setIsStartingGame(true);
+    setShowPaymentModal(false);
 
     try {
       // Convert seat selections to player configurations
@@ -186,7 +176,6 @@ export default function Home() {
         players,
         startingStack,
         numberOfHands,
-        provider,
       });
 
       const response = await fetch("/api/run-simulation", {
@@ -198,8 +187,6 @@ export default function Home() {
           players,
           startingStack: startingStack,
           numberOfHands: numberOfHands,
-          apiKey: apiKey.trim(),
-          provider,
         }),
       });
 
@@ -257,6 +244,7 @@ export default function Home() {
             </p>
           </div>
           <div className="flex flex-row items-center gap-2 2xl:gap-3">
+            <WalletButton />
             <AnimatedFramedLink href="/history">
               <ChartScatterIcon size={16} className="2xl:w-5 2xl:h-5" />
               <p>History</p>
@@ -323,10 +311,6 @@ export default function Home() {
             <CornerBorders colorClass="border-dark-8" />
             <ConfigurationSidebar
               seatSelections={seatSelections}
-              provider={provider}
-              setProvider={setProvider}
-              apiKey={apiKey}
-              setApiKey={setApiKey}
               startingStack={startingStack}
               setStartingStack={setStartingStack}
               numberOfHands={numberOfHands}
@@ -335,7 +319,7 @@ export default function Home() {
               setError={setError}
               canStartGame={canStartGame}
               isStartingGame={isStartingGame}
-              startGame={startGame}
+              startGame={initiateGameStart}
               updateSeatSelection={updateSeatSelection}
               modelsCount={models.length}
             />
@@ -355,6 +339,17 @@ export default function Home() {
           onClose={closeModal}
         />
       )}
+
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        startingStack={startingStack}
+        participants={numParticipants}
+        onPaymentSuccess={(txHash) => {
+          setPaymentTxHash(txHash);
+          startGame();
+        }}
+      />
 
       <Footer />
     </div>
@@ -448,22 +443,19 @@ const PokerTable = ({ selectedCount }: { selectedCount: number }) => {
       <div className="flex flex-col items-center justify-center relative z-10 h-40 2xl:h-56">
         {/* Status display */}
         <div
-          className={`flex flex-row items-center gap-2 2xl:gap-3 bg-dark-2 border px-4 py-3 2xl:px-6 2xl:py-4 ${
-            selectedCount === 6 ? "border-green-900/50" : "border-dark-6"
-          }`}
+          className={`flex flex-row items-center gap-2 2xl:gap-3 bg-dark-2 border px-4 py-3 2xl:px-6 2xl:py-4 ${selectedCount === 6 ? "border-green-900/50" : "border-dark-6"
+            }`}
         >
           <DiamondsFourIcon
             size={18}
-            className={`2xl:w-6 2xl:h-6 ${
-              selectedCount === 6 ? "text-green-500" : "text-dark-10"
-            }`}
+            className={`2xl:w-6 2xl:h-6 ${selectedCount === 6 ? "text-green-500" : "text-dark-10"
+              }`}
             weight="fill"
           />
           <div className="flex flex-col">
             <div
-              className={`text-sm 2xl:text-base font-semibold ${
-                selectedCount === 6 ? "text-text-bright" : "text-text-medium"
-              }`}
+              className={`text-sm 2xl:text-base font-semibold ${selectedCount === 6 ? "text-text-bright" : "text-text-medium"
+                }`}
             >
               LLM Poker
             </div>
@@ -488,10 +480,6 @@ const PokerTable = ({ selectedCount }: { selectedCount: number }) => {
 
 const ConfigurationSidebar = ({
   seatSelections,
-  provider,
-  setProvider,
-  apiKey,
-  setApiKey,
   startingStack,
   setStartingStack,
   numberOfHands,
@@ -505,10 +493,6 @@ const ConfigurationSidebar = ({
   modelsCount,
 }: {
   seatSelections: SeatSelection[];
-  provider: AIProvider;
-  setProvider: (p: AIProvider) => void;
-  apiKey: string;
-  setApiKey: (k: string) => void;
   startingStack: number;
   setStartingStack: (n: number) => void;
   numberOfHands: number;
@@ -531,22 +515,20 @@ const ConfigurationSidebar = ({
       <div className="relative flex bg-dark-3 border-b border-dark-5 p-1 2xl:p-1.5">
         <button
           onClick={() => setActiveTab("settings")}
-          className={`relative z-10 flex-1 flex items-center justify-center gap-2 2xl:gap-3 px-2 py-2 2xl:px-3 2xl:py-3 text-xs 2xl:text-sm font-medium uppercase transition-colors ${
-            activeTab === "settings"
-              ? "text-text-bright bg-dark-5"
-              : "text-text-dim hover:text-text-medium"
-          }`}
+          className={`relative z-10 flex-1 flex items-center justify-center gap-2 2xl:gap-3 px-2 py-2 2xl:px-3 2xl:py-3 text-xs 2xl:text-sm font-medium uppercase transition-colors ${activeTab === "settings"
+            ? "text-text-bright bg-dark-5"
+            : "text-text-dim hover:text-text-medium"
+            }`}
         >
           <Gear size={14} className="text-orange-500 2xl:w-5 2xl:h-5" />
           <span>Settings</span>
         </button>
         <button
           onClick={() => setActiveTab("seats")}
-          className={`relative z-10 flex-1 flex items-center justify-center gap-2 2xl:gap-3 px-2 py-2 2xl:px-3 2xl:py-3 text-xs 2xl:text-sm font-medium uppercase transition-colors ${
-            activeTab === "seats"
-              ? "text-text-bright bg-dark-5"
-              : "text-text-dim hover:text-text-medium"
-          }`}
+          className={`relative z-10 flex-1 flex items-center justify-center gap-2 2xl:gap-3 px-2 py-2 2xl:px-3 2xl:py-3 text-xs 2xl:text-sm font-medium uppercase transition-colors ${activeTab === "seats"
+            ? "text-text-bright bg-dark-5"
+            : "text-text-dim hover:text-text-medium"
+            }`}
         >
           <CardsThree size={14} className="text-sky-500 2xl:w-5 2xl:h-5" />
           <span>Seats</span>
@@ -557,7 +539,7 @@ const ConfigurationSidebar = ({
       <div className="overflow-y-auto flex-1">
         {activeTab === "settings" && (
           <div className="space-y-0">
-            {/* AI Provider Section */}
+            {/* Info Section - API configured server-side */}
             <div className="bg-dark-2 border-b border-dark-5">
               <div className="p-3 2xl:p-4 border-b border-dark-5">
                 <h3 className="text-xs 2xl:text-sm font-medium uppercase text-text-bright">
@@ -565,82 +547,12 @@ const ConfigurationSidebar = ({
                 </h3>
               </div>
               <div className="p-3 2xl:p-4">
-                <div className="flex gap-2 2xl:gap-3">
-                  <button
-                    onClick={() => {
-                      setProvider("openrouter");
-                      localStorage.setItem("llm-poker-provider", "openrouter");
-                      setApiKey("");
-                      localStorage.removeItem("llm-poker-api-key");
-                      setError(null);
-                    }}
-                    className={`flex-1 px-3 py-2 2xl:px-4 2xl:py-3 text-xs 2xl:text-sm border transition-colors ${
-                      provider === "openrouter"
-                        ? "bg-green-950/30 border-green-900/50 text-green-400"
-                        : "bg-dark-3 border-dark-6 text-text-dim hover:border-dark-8"
-                    }`}
-                  >
-                    OpenRouter
-                  </button>
-                  <button
-                    onClick={() => {
-                      setProvider("vercel-ai-gateway");
-                      localStorage.setItem(
-                        "llm-poker-provider",
-                        "vercel-ai-gateway"
-                      );
-                      setApiKey("");
-                      localStorage.removeItem("llm-poker-api-key");
-                      setError(null);
-                    }}
-                    className={`flex-1 px-3 py-2 2xl:px-4 2xl:py-3 text-xs 2xl:text-sm border transition-colors ${
-                      provider === "vercel-ai-gateway"
-                        ? "bg-green-950/30 border-green-900/50 text-green-400"
-                        : "bg-dark-3 border-dark-6 text-text-dim hover:border-dark-8"
-                    }`}
-                  >
-                    Vercel AI
-                  </button>
+                <div className="flex items-center gap-2 2xl:gap-3">
+                  <div className="w-2 h-2 2xl:w-2.5 2xl:h-2.5 bg-green-500 rounded-full"></div>
+                  <span className="text-xs 2xl:text-sm text-text-medium">Vercel AI Gateway</span>
                 </div>
-              </div>
-            </div>
-
-            {/* API Key Section */}
-            <div className="bg-dark-2 border-b border-dark-5">
-              <div className="p-3 2xl:p-4 border-b border-dark-5">
-                <h3 className="text-xs 2xl:text-sm font-medium uppercase text-text-bright">
-                  {provider === "vercel-ai-gateway"
-                    ? "Vercel AI Gateway Key"
-                    : "OpenRouter API Key"}
-                </h3>
-              </div>
-              <div className="p-3 2xl:p-4">
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => {
-                    setApiKey(e.target.value);
-                    if (e.target.value.trim()) {
-                      localStorage.setItem(
-                        "llm-poker-api-key",
-                        e.target.value.trim()
-                      );
-                    } else {
-                      localStorage.removeItem("llm-poker-api-key");
-                    }
-                    setError(null);
-                  }}
-                  placeholder={
-                    provider === "vercel-ai-gateway"
-                      ? "Enter your Vercel AI Gateway key"
-                      : "sk-or-..."
-                  }
-                  className="w-full bg-dark-3 border border-dark-6 px-3 py-2 2xl:px-4 2xl:py-3 text-xs 2xl:text-sm text-text-medium focus:outline-none focus:border-dark-8 placeholder:text-dark-10"
-                />
                 <p className="text-xs 2xl:text-sm text-text-dim mt-2 2xl:mt-3">
-                  {provider === "vercel-ai-gateway"
-                    ? "From Vercel Dashboard → AI Gateway"
-                    : "Required to run AI models"}
+                  Configured via server environment
                 </p>
               </div>
             </div>
@@ -740,11 +652,10 @@ const ConfigurationSidebar = ({
               <button
                 onClick={startGame}
                 disabled={!canStartGame || isStartingGame}
-                className={`w-full flex items-center justify-center gap-2 2xl:gap-3 px-4 py-3 2xl:px-6 2xl:py-4 text-xs 2xl:text-sm font-semibold uppercase transition-colors ${
-                  canStartGame && !isStartingGame
-                    ? "bg-green-950/50 border border-green-900/50 text-green-400 hover:bg-green-950/70"
-                    : "bg-dark-3 border border-dark-6 text-text-dim cursor-not-allowed"
-                }`}
+                className={`w-full flex items-center justify-center gap-2 2xl:gap-3 px-4 py-3 2xl:px-6 2xl:py-4 text-xs 2xl:text-sm font-semibold uppercase transition-colors ${canStartGame && !isStartingGame
+                  ? "bg-green-950/50 border border-green-900/50 text-green-400 hover:bg-green-950/70"
+                  : "bg-dark-3 border border-dark-6 text-text-dim cursor-not-allowed"
+                  }`}
               >
                 {isStartingGame ? (
                   <>
@@ -1027,12 +938,11 @@ const ModelSelectionModal = ({
                       },
                     })
                   }
-                  className={`w-full text-left p-4 2xl:p-5 hover:bg-dark-3 transition-colors ${
-                    currentSelection?.type === "model" &&
+                  className={`w-full text-left p-4 2xl:p-5 hover:bg-dark-3 transition-colors ${currentSelection?.type === "model" &&
                     currentSelection.model.id === model.id
-                      ? "bg-dark-3 border-l-2 border-l-green-500"
-                      : ""
-                  }`}
+                    ? "bg-dark-3 border-l-2 border-l-green-500"
+                    : ""
+                    }`}
                 >
                   <div className="flex flex-col gap-2 2xl:gap-3">
                     <div className="flex items-start justify-between">

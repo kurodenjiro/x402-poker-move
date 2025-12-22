@@ -304,25 +304,9 @@ export default function HistoryPage() {
                   </div>
                 )}
               </div>
-            </>
-          ) : (
-            <>
-              {/* Payments Section Header */}
-              <div className="bg-dark-3 border-b border-dark-5 p-3 2xl:p-4">
-                <h2 className="text-xs 2xl:text-sm font-medium uppercase text-text-bright">
-                  Payment History
-                </h2>
-                <p className="text-xs 2xl:text-sm text-text-dim">
-                  All x402 poker game entry fee payments
-                </p>
-              </div>
-              
-              <PaymentHistory />
-            </>
-          )}
+            </div>
         </div>
+        <Footer />
       </div>
-      <Footer />
-    </div>
-  );
+      );
 }

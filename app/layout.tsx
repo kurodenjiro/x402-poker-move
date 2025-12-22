@@ -4,6 +4,7 @@ import { Geist_Mono, Geist, Rubik_Glitch } from "next/font/google";
 
 import { PostHogProvider } from "./components/PostHogProvider";
 import { WelcomeModalProvider } from "./components/WelcomeModalProvider";
+import PrivyProvider from "./components/PrivyProvider";
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -38,10 +39,12 @@ export default function RootLayout({
       <body
         className={`dark antialiased h-full ${geistMono.variable} ${geist.variable} ${rubikGlitch.variable} flex flex-col font-geist`}
       >
-        <PostHogProvider>
-          <WelcomeModalProvider>{children}</WelcomeModalProvider>
-          {/* <Footer /> */}
-        </PostHogProvider>
+        <PrivyProvider>
+          <PostHogProvider>
+            <WelcomeModalProvider>{children}</WelcomeModalProvider>
+            {/* <Footer /> */}
+          </PostHogProvider>
+        </PrivyProvider>
       </body>
     </html>
   );

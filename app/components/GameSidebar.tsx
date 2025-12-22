@@ -20,9 +20,11 @@ import {
   Users,
   ArrowLeft,
   DiamondsFourIcon,
+  CurrencyCircleDollar,
 } from "@phosphor-icons/react";
 import { Reorder, motion } from "motion/react";
 import Card from "./Card";
+import GamePaymentFeed from "./GamePaymentFeed";
 
 // Color palette for different players
 const PLAYER_COLORS = [
@@ -103,7 +105,7 @@ export default function GameSidebar({
   selectedPlayer,
   onPlayerSelect,
 }: GameSidebarProps) {
-  const [activeTab, setActiveTab] = useState<"analytics" | "players">(
+  const [activeTab, setActiveTab] = useState<"analytics" | "players" | "payments">(
     "players"
   );
 
@@ -200,6 +202,12 @@ export default function GameSidebar({
       icon: Users,
       iconColorClass: "text-sky-500",
     },
+    {
+      id: "payments" as const,
+      label: "Payments",
+      icon: CurrencyCircleDollar,
+      iconColorClass: "text-green-500",
+    },
   ];
 
   return (
@@ -212,8 +220,8 @@ export default function GameSidebar({
           className="absolute top-1 bottom-1 2xl:top-1.5 2xl:bottom-1.5 bg-dark-5"
           layoutId="sidebar-tab-indicator"
           style={{
-            left: activeTab === "analytics" ? "4px" : "50%",
-            right: activeTab === "analytics" ? "50%" : "4px",
+            left: activeTab === "analytics" ? "4px" : activeTab === "players" ? "33.33%" : "66.66%",
+            right: activeTab === "analytics" ? "66.66%" : activeTab === "players" ? "33.33%" : "4px",
           }}
           transition={{
             type: "spring",
@@ -225,11 +233,10 @@ export default function GameSidebar({
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`relative z-10 flex-1 flex items-center justify-center gap-2 2xl:gap-3 px-2 py-2 2xl:px-3 2xl:py-3 text-xs 2xl:text-sm font-medium uppercase transition-colors ${
-              activeTab === tab.id
-                ? "text-text-bright"
-                : "text-text-dim hover:text-text-medium"
-            }`}
+            className={`relative z-10 flex-1 flex items-center justify-center gap-2 2xl:gap-3 px-2 py-2 2xl:px-3 2xl:py-3 text-xs 2xl:text-sm font-medium uppercase transition-colors ${activeTab === tab.id
+              ? "text-text-bright"
+              : "text-text-dim hover:text-text-medium"
+              }`}
           >
             <tab.icon
               size={14}
@@ -252,6 +259,19 @@ export default function GameSidebar({
             onPlayerSelect={onPlayerSelect}
             game={game}
           />
+        )}
+        {activeTab === "payments" && (
+          <div>
+            <div className="p-3 2xl:p-4 border-b border-dark-5">
+              <h3 className="text-xs 2xl:text-sm font-medium uppercase text-text-bright">
+                Agent Payments
+              </h3>
+              <p className="text-xs 2xl:text-sm text-text-dim">
+                Real-time x402 payment feed
+              </p>
+            </div>
+            <GamePaymentFeed gameId={game.id} />
+          </div>
         )}
       </div>
     </div>

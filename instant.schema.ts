@@ -59,6 +59,15 @@ const _schema = i.schema({
       credit: i.boolean().indexed(),
       createdAt: i.date(),
     }),
+    payments: i.entity({
+      txHash: i.string().unique().indexed(),
+      amount: i.number(),
+      currency: i.string(),
+      walletAddress: i.string().indexed(),
+      status: i.string().indexed(), // 'pending', 'confirmed', 'failed'
+      createdAt: i.date().indexed(),
+      confirmedAt: i.date().optional(),
+    }),
   },
   links: {
     gameRound: {
@@ -104,6 +113,10 @@ const _schema = i.schema({
     transactionGameRound: {
       forward: { on: "transactions", has: "one", label: "gameRound" },
       reverse: { on: "gameRounds", has: "many", label: "transactions" }
+    },
+    paymentGame: {
+      forward: { on: "payments", has: "one", label: "game" },
+      reverse: { on: "games", has: "one", label: "payment" }
     }
   },
   rooms: {},
@@ -111,7 +124,7 @@ const _schema = i.schema({
 
 // This helps Typescript display nicer intellisense
 type _AppSchema = typeof _schema;
-interface AppSchema extends _AppSchema {}
+interface AppSchema extends _AppSchema { }
 const schema: AppSchema = _schema;
 
 export type { AppSchema };

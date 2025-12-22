@@ -96,7 +96,7 @@ async function initializePlayers(gameId: string, initialStack: number): Promise<
  * @param initialStack - Stack size to reset players to
  */
 export async function resetBustedPlayers(
-  players: Record<string, Player>, 
+  players: Record<string, Player>,
   initialStack: number = GAME_CONFIG.INITIAL_STACK
 ): Promise<void> {
   const bustedPlayers = Object.values(players).filter(player => player.stack <= 0);
@@ -191,6 +191,26 @@ export async function initializeCustomGame(
 
   logger.log("Custom game created", { gameId, triggerHandleId });
 
+  // Delete any placeholder players that were created during the initial game setup
+  // These are temporary players with model "initializing"
+  const existingGame = await db.query({
+    games: {
+      $: { where: { id: gameId } },
+      players: {}
+    }
+  });
+
+  const placeholderPlayers = existingGame.games[0]?.players?.filter(
+    (p: any) => p.model === "initializing"
+  ) || [];
+
+  if (placeholderPlayers.length > 0) {
+    logger.log("Deleting placeholder players", { count: placeholderPlayers.length });
+    for (const placeholder of placeholderPlayers) {
+      await db.transact(db.tx.players[placeholder.id].delete());
+    }
+  }
+
   // Initialize players with custom configurations
   const players: Record<string, Player> = {};
 
@@ -228,9 +248,9 @@ export async function initializeCustomGame(
 
     // Handle AI players
     const model = config.model;
-    const modelName = OPENROUTER_MODELS.find(m => m.id === model)?.name || 
-                     model.split('/').pop() || 
-                     model;
+    const modelName = OPENROUTER_MODELS.find(m => m.id === model)?.name ||
+      model.split('/').pop() ||
+      model;
 
     await db.transact(
       db.tx.players[playerId]

@@ -27,13 +27,22 @@ const getBaseUrl = () => {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { players, startingStack, numberOfHands, apiKey, provider = 'openrouter' } = body as {
+    const { players, startingStack, numberOfHands } = body as {
       players: PlayerConfig[];
       startingStack: number;
       numberOfHands: number;
-      apiKey: string;
-      provider?: AIProvider;
     };
+
+    // Get API key from environment variable (Vercel AI Gateway only)
+    const apiKey = process.env.VERCEL_AI_GATEWAY_API_KEY;
+    const provider = 'vercel-ai-gateway' as const;
+
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'VERCEL_AI_GATEWAY_API_KEY environment variable is not set' },
+        { status: 500 }
+      );
+    }
 
     // Validate input
     if (!players || !Array.isArray(players) || players.length !== 6) {
@@ -46,7 +55,7 @@ export async function POST(request: NextRequest) {
     // Validate each player configuration
     for (let i = 0; i < players.length; i++) {
       const player = players[i];
-      
+
       // Empty seats don't need a model
       if (player.emptySeat) {
         continue;
@@ -61,12 +70,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'API key is required' },
-        { status: 400 }
-      );
-    }
+
 
     if (startingStack < 100 || startingStack > 100000) {
       return NextResponse.json(
@@ -82,12 +86,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate a game ID upfront
+    // Generate a game ID upfront to return to the client
     const gameId = id();
 
-    // Create a pending game record immediately so the game page can show "starting" state
-    // This record will be updated by the workflow when it actually starts
-    await db.transact(
+    // Create a minimal game record immediately so the page doesn't 404
+    // The workflow will replace this with the full game including real players
+    const placeholderPlayerId = id();
+    await db.transact([
       db.tx.games[gameId].update({
         totalRounds: numberOfHands,
         createdAt: DateTime.now().toISO(),
@@ -95,14 +100,29 @@ export async function POST(request: NextRequest) {
         currentActivePosition: null,
         deck: { cards: [] },
         customGame: true,
-        // Note: players will be added by the workflow
-      })
-    );
+      }),
+      // Create a placeholder player so the frontend doesn't see "no players"
+      db.tx.players[placeholderPlayerId]
+        .update({
+          name: "Initializing...",
+          stack: 0,
+          status: "folded",
+          model: "initializing",
+          createdAt: DateTime.now().toISO(),
+        })
+        .link({ game: gameId })
+    ]);
 
     // Trigger the Upstash Workflow
-    const client = new Client({ token: process.env.QSTASH_TOKEN! });
+    // The workflow will delete the placeholder and create real players
+    const client = new Client({
+      token: process.env.QSTASH_TOKEN!,
+      baseUrl: process.env.QSTASH_URL || undefined, // Use local QStash server if specified
+    });
     const baseUrl = getBaseUrl();
-    
+    console.log('baseUrl', baseUrl);
+    console.log('QSTASH_URL', process.env.QSTASH_URL);
+    console.log('QSTASH_TOKEN', process.env.QSTASH_TOKEN ? 'present' : 'missing');
     const { workflowRunId } = await client.trigger({
       url: `${baseUrl}/api/workflow/start-custom-game`,
       body: {
@@ -115,13 +135,6 @@ export async function POST(request: NextRequest) {
       },
       retries: 1,
     });
-
-    // Update the game with the workflow run ID
-    await db.transact(
-      db.tx.games[gameId].update({
-        jobHandleId: workflowRunId,
-      })
-    );
 
     // Return the game ID directly
     return NextResponse.json({
