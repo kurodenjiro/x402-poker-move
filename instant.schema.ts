@@ -68,6 +68,14 @@ const _schema = i.schema({
       createdAt: i.date().indexed(),
       confirmedAt: i.date().optional(),
     }),
+    agentWallets: i.entity({
+      address: i.string().unique().indexed(),
+      privateKey: i.string(), // Store encrypted in production
+      seatNumber: i.number(),
+      balance: i.number(),
+      initialBalance: i.number(),
+      createdAt: i.date(),
+    }),
   },
   links: {
     gameRound: {
@@ -114,9 +122,29 @@ const _schema = i.schema({
       forward: { on: "transactions", has: "one", label: "gameRound" },
       reverse: { on: "gameRounds", has: "many", label: "transactions" }
     },
+    actionGame: {
+      forward: { on: "actions", has: "one", label: "game" },
+      reverse: { on: "games", has: "many", label: "actionsGame" }
+    },
+    bettingRoundGame: {
+      forward: { on: "bettingRounds", has: "one", label: "game" },
+      reverse: { on: "games", has: "many", label: "bettingRoundsGame" }
+    },
+    handGame: {
+      forward: { on: "hands", has: "one", label: "game" },
+      reverse: { on: "games", has: "many", label: "handsGame" }
+    },
+    transactionGame: {
+      forward: { on: "transactions", has: "one", label: "game" },
+      reverse: { on: "games", has: "many", label: "transactionsGame" }
+    },
     paymentGame: {
       forward: { on: "payments", has: "one", label: "game" },
       reverse: { on: "games", has: "one", label: "payment" }
+    },
+    agentWalletGame: {
+      forward: { on: "agentWallets", has: "one", label: "game" },
+      reverse: { on: "games", has: "many", label: "agentWallets" }
     }
   },
   rooms: {},

@@ -94,6 +94,16 @@ export default function GamePaymentFeed({ gameId }: GamePaymentFeedProps) {
                                     second: "2-digit",
                                 })}
                             </div>
+                            {payment.txHash && (
+                                <a
+                                    href={`https://explorer.movementnetwork.xyz/txn/${payment.txHash}?network=testnet`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-blue-400 hover:text-blue-300 font-mono truncate block mt-1"
+                                >
+                                    TX: {payment.txHash.slice(0, 12)}...
+                                </a>
+                            )}
                         </div>
 
                         {/* Amount Badge */}

@@ -355,6 +355,7 @@ export default function Home() {
         onClose={() => setShowPaymentModal(false)}
         startingStack={startingStack}
         participants={numParticipants}
+        seatSelections={seatSelections}
         onPaymentSuccess={(txHash) => {
           setPaymentTxHash(txHash);
           startGame();

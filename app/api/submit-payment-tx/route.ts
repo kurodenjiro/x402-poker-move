@@ -3,6 +3,7 @@ import { init, id } from "@instantdb/admin";
 import schema from "@/instant.schema";
 import { aptos } from "@/lib/movement";
 import { Account, Ed25519PrivateKey, Deserializer, SimpleTransaction } from "@aptos-labs/ts-sdk";
+import { generateAgentWallet, distributeToAgents } from "@/lib/agent-wallets";
 
 // Initialize InstantDB
 const db = init({
@@ -19,6 +20,7 @@ export async function POST(request: NextRequest) {
             senderAddress,
             recipientAddress,
             amountInOctas,
+            seatSelections, // Array of seat configurations
         } = body;
 
         console.log("✅ Submitting payment transaction:", {
@@ -120,13 +122,78 @@ export async function POST(request: NextRequest) {
 
         console.log("💾 Payment saved to database:", { paymentId, txHash });
 
+        // Generate agent wallets and distribute funds
+        let agentWalletIds: string[] = [];
+        let distributionTxHashes: string[] = [];
+
+        if (seatSelections && seatSelections.length > 0) {
+            // Count AI agents (not empty seats)
+            const aiAgents = seatSelections.filter((seat: any) =>
+                seat && seat.type === "model"
+            );
+
+            if (aiAgents.length > 0) {
+                console.log(`🤖 Generating ${aiAgents.length} agent wallets...`);
+
+                // Calculate amount per agent (entry fee / number of AI agents)
+                const amountPerAgentInOctas = Math.floor(amountInOctas / aiAgents.length);
+
+                // Generate wallets for each AI agent
+                const agentWallets = aiAgents.map((seat: any, index: number) => {
+                    const wallet = generateAgentWallet();
+                    return {
+                        ...wallet,
+                        seatNumber: seatSelections.indexOf(seat),
+                        modelName: seat.model?.name || "AI Agent",
+                    };
+                });
+
+                // Distribute funds to agents
+                try {
+                    distributionTxHashes = await distributeToAgents(
+                        serverAccount,
+                        agentWallets.map(w => w.address),
+                        amountPerAgentInOctas
+                    );
+
+                    console.log(`✅ Distributed funds to ${agentWallets.length} agents`);
+
+                    // Save agent wallets to database
+                    const agentWalletTransactions = agentWallets.map((wallet, index) => {
+                        const agentWalletId = id();
+                        agentWalletIds.push(agentWalletId);
+
+                        return db.tx.agentWallets[agentWalletId].update({
+                            address: wallet.address,
+                            privateKey: wallet.privateKey, // TODO: Encrypt in production
+                            seatNumber: wallet.seatNumber,
+                            balance: amountPerAgentInOctas / 100_000_000,
+                            initialBalance: amountPerAgentInOctas / 100_000_000,
+                            createdAt: Date.now(),
+                        });
+                    });
+
+                    await db.transact(agentWalletTransactions);
+
+                    console.log(`💾 Saved ${agentWallets.length} agent wallets to database`);
+                } catch (error) {
+                    console.error("❌ Failed to distribute funds to agents:", error);
+                    // Continue anyway - payment was successful
+                }
+            }
+        }
+
         return NextResponse.json({
             success: true,
             txHash,
             paymentId,
             message: "Payment processed successfully",
             amount: amountInOctas / 100_000_000,
-            explorerUrl: `https://explorer.movementlabs.xyz/txn/${txHash}`,
+            agentWallets: agentWalletIds.length > 0 ? {
+                count: agentWalletIds.length,
+                distributionTxHashes,
+            } : undefined,
+            explorerUrl: `https://explorer.movementnetwork.xyz/txn/${txHash}?network=testnet`,
         });
 
     } catch (error) {

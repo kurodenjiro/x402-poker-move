@@ -10,6 +10,7 @@ interface PaymentModalProps {
     onClose: () => void;
     startingStack: number;
     participants: number;
+    seatSelections: any[]; // Array of seat configurations
     onPaymentSuccess: (txHash: string) => void;
 }
 
@@ -18,6 +19,7 @@ export default function PaymentModal({
     onClose,
     startingStack,
     participants,
+    seatSelections,
     onPaymentSuccess,
 }: PaymentModalProps) {
     const { authenticated, login } = usePrivy();
@@ -101,6 +103,7 @@ export default function PaymentModal({
                     senderAddress: walletAddress,
                     recipientAddress,
                     amountInOctas,
+                    seatSelections, // Pass seat selections for agent wallet generation
                 }),
             });
 
