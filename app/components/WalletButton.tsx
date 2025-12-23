@@ -4,12 +4,14 @@ import { usePrivy } from "@privy-io/react-auth";
 import { Wallet, SignOut, Copy, Check } from "@phosphor-icons/react";
 import { useState, useEffect } from "react";
 import NumberFlow from "@number-flow/react";
+import { padAddressToAptos } from "@/lib/movement";
 
 export default function WalletButton() {
     const { ready, authenticated, user, login, logout } = usePrivy();
     const [balance, setBalance] = useState<number | null>(null);
     const [isLoadingBalance, setIsLoadingBalance] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [copiedPadded, setCopiedPadded] = useState(false);
     const [showDropdown, setShowDropdown] = useState(false);
 
     // Fetch wallet balance when authenticated
@@ -43,6 +45,15 @@ export default function WalletButton() {
             await navigator.clipboard.writeText(user.wallet.address);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
+        }
+    };
+
+    const copyPaddedAddress = async () => {
+        if (user?.wallet?.address) {
+            const paddedAddress = padAddressToAptos(user.wallet.address);
+            await navigator.clipboard.writeText(paddedAddress);
+            setCopiedPadded(true);
+            setTimeout(() => setCopiedPadded(false), 2000);
         }
     };
 
@@ -102,6 +113,33 @@ export default function WalletButton() {
                                         )}
                                     </button>
                                 </div>
+                            </div>
+
+                            {/* Movement Faucet Address */}
+                            <div>
+                                <div className="text-xs text-text-dim uppercase mb-1">
+                                    Movement Faucet Address
+                                    <span className="ml-1 text-orange-400">(Use this for faucet)</span>
+                                </div>
+                                <div className="flex items-center gap-2 bg-dark-3 border border-orange-900/50 p-2">
+                                    <code className="text-xs text-orange-300 font-mono flex-1 truncate">
+                                        {user.wallet?.address && padAddressToAptos(user.wallet.address)}
+                                    </code>
+                                    <button
+                                        onClick={copyPaddedAddress}
+                                        className="text-text-dim hover:text-orange-400 transition-colors flex-shrink-0"
+                                        title="Copy padded address for faucet"
+                                    >
+                                        {copiedPadded ? (
+                                            <Check size={16} className="text-orange-400" weight="bold" />
+                                        ) : (
+                                            <Copy size={16} />
+                                        )}
+                                    </button>
+                                </div>
+                                <p className="text-xs text-text-dim mt-1">
+                                    64-character format required by Movement faucet
+                                </p>
                             </div>
 
                             {/* Balance */}

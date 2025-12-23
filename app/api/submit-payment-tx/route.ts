@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { init, id } from "@instantdb/admin";
 import schema from "@/instant.schema";
 import { aptos } from "@/lib/movement";
-import { Account, Ed25519PrivateKey, AccountAddress } from "@aptos-labs/ts-sdk";
+import { Account, Ed25519PrivateKey, Deserializer, SimpleTransaction } from "@aptos-labs/ts-sdk";
 
 // Initialize InstantDB
 const db = init({
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const {
-            transaction,
+            transaction: transactionBase64,
             senderAddress,
             recipientAddress,
             amountInOctas,
@@ -42,6 +42,11 @@ export async function POST(request: NextRequest) {
         const serverAccount = Account.fromPrivateKey({ privateKey });
 
         console.log("🔐 Signing with server wallet:", serverAccount.accountAddress.toString());
+
+        // Deserialize the transaction from base64
+        const transactionBytes = Buffer.from(transactionBase64, 'base64');
+        const deserializer = new Deserializer(new Uint8Array(transactionBytes));
+        const transaction = SimpleTransaction.deserialize(deserializer);
 
         // Sign the transaction with server account
         const senderAuthenticator = aptos.transaction.sign({
@@ -108,8 +113,8 @@ export async function POST(request: NextRequest) {
                 currency: "MOVE",
                 walletAddress: senderAddress,
                 status: "confirmed",
-                createdAt: new Date(),
-                confirmedAt: new Date(),
+                createdAt: Date.now(),
+                confirmedAt: Date.now(),
             }),
         ]);
 

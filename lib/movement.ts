@@ -2,9 +2,9 @@ import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 
 // Movement Network Configuration
 export const MOVEMENT_NETWORK = {
-    name: "Movement",
-    chainId: 336, // Mainnet chain ID
-    rpcUrl: "https://mainnet.movementnetwork.xyz/v1",
+    name: "Movement Testnet",
+    chainId: 27010, // Testnet chain ID
+    rpcUrl: "https://testnet.movementnetwork.xyz/v1",
     explorerUrl: "https://explorer.movementnetwork.xyz",
 };
 
