@@ -63,7 +63,12 @@ const _schema = i.schema({
       txHash: i.string().unique().indexed(),
       amount: i.number(),
       currency: i.string(),
-      walletAddress: i.string().indexed(),
+      walletAddress: i.string().indexed(), // Deprecated: use fromAddress/toAddress
+      fromAddress: i.string().indexed().optional(), // Sender (for agent-to-agent)
+      toAddress: i.string().indexed().optional(), // Receiver (for agent-to-agent)
+      chipAmount: i.number().optional(), // Chips won/lost
+      handNumber: i.number().optional(), // Which poker hand
+      paymentType: i.string().indexed().optional(), // 'entry_fee', 'agent_transfer'
       status: i.string().indexed(), // 'pending', 'confirmed', 'failed'
       createdAt: i.date().indexed(),
       confirmedAt: i.date().optional(),
@@ -72,6 +77,7 @@ const _schema = i.schema({
       address: i.string().unique().indexed(),
       privateKey: i.string(), // Store encrypted in production
       seatNumber: i.number(),
+      agentName: i.string().optional(), // Display name (e.g., "GPT-4", "Claude", "Seat 3")
       balance: i.number(),
       initialBalance: i.number(),
       createdAt: i.date(),

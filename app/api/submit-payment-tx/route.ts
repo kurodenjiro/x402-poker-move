@@ -106,21 +106,38 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        // Save payment to database
-        const paymentId = id();
+        // Generate game ID and create game entity in database
+        const gameId = id();
+        console.log(`🎮 Creating game entity with ID: ${gameId}`);
+
+        // Create game entity first (required for relationships to work!)
         await db.transact([
-            db.tx.payments[paymentId].update({
-                txHash,
-                amount: amountInOctas / 100_000_000,
-                currency: "MOVE",
-                walletAddress: senderAddress,
-                status: "confirmed",
+            db.tx.games[gameId].update({
+                totalRounds: 0, // Will be updated when simulation runs
+                deck: [],
+                buttonPosition: 0,
                 createdAt: Date.now(),
-                confirmedAt: Date.now(),
             }),
         ]);
 
-        console.log("💾 Payment saved to database:", { paymentId, txHash });
+        // Save payment to database with game link
+        const paymentId = id();
+        await db.transact([
+            db.tx.payments[paymentId]
+                .update({
+                    txHash,
+                    amount: amountInOctas / 100_000_000,
+                    currency: "MOVE",
+                    walletAddress: senderAddress,
+                    paymentType: "entry_fee",
+                    status: "confirmed",
+                    createdAt: Date.now(),
+                    confirmedAt: Date.now(),
+                })
+                .link({ game: gameId }), // ← Link payment to game!
+        ]);
+
+        console.log("💾 Payment saved and linked to game:", { paymentId, txHash, gameId });
 
         // Generate agent wallets and distribute funds
         let agentWalletIds: string[] = [];
@@ -135,15 +152,33 @@ export async function POST(request: NextRequest) {
             if (aiAgents.length > 0) {
                 console.log(`🤖 Generating ${aiAgents.length} agent wallets...`);
 
-                // Calculate amount per agent (entry fee / number of AI agents)
-                const amountPerAgentInOctas = Math.floor(amountInOctas / aiAgents.length);
+                // Reserve gas buffer for all agents (0.05 MOVE per agent for safety)
+                const GAS_BUFFER_PER_AGENT = 0.05 * 100_000_000; // 0.05 MOVE in octas
+                const totalGasBuffer = GAS_BUFFER_PER_AGENT * aiAgents.length;
+
+                // Calculate chips per agent from remaining amount after gas buffer
+                const chipsToDistribute = amountInOctas - totalGasBuffer;
+                const chipsPerAgentInOctas = Math.floor(chipsToDistribute / aiAgents.length);
+
+                // Total amount per agent = chips + gas buffer
+                const amountPerAgentInOctas = chipsPerAgentInOctas + GAS_BUFFER_PER_AGENT;
+
+                console.log(`💰 Fund distribution per agent:`);
+                console.log(`   Chips: ${chipsPerAgentInOctas / 100_000_000} MOVE`);
+                console.log(`   Gas buffer: ${GAS_BUFFER_PER_AGENT / 100_000_000} MOVE`);
+                console.log(`   Total: ${amountPerAgentInOctas / 100_000_000} MOVE`);
 
                 // Generate wallets for each AI agent
-                const agentWallets = aiAgents.map((seat: any, index: number) => {
+                // Track which original seat index each AI agent came from
+                const agentWallets = aiAgents.map((seat: any) => {
                     const wallet = generateAgentWallet();
+                    const actualSeatNumber = seatSelections.indexOf(seat); // Actual seat in game (0-5)
+
+                    console.log(`   Creating wallet for seat ${actualSeatNumber}: ${seat.model?.name}`);
+
                     return {
                         ...wallet,
-                        seatNumber: seatSelections.indexOf(seat),
+                        seatNumber: actualSeatNumber,
                         modelName: seat.model?.name || "AI Agent",
                     };
                 });
@@ -158,19 +193,22 @@ export async function POST(request: NextRequest) {
 
                     console.log(`✅ Distributed funds to ${agentWallets.length} agents`);
 
-                    // Save agent wallets to database
-                    const agentWalletTransactions = agentWallets.map((wallet, index) => {
+                    // Save agent wallets to database with game linkage
+                    const agentWalletTransactions = agentWallets.map((wallet: any, index: any) => {
                         const agentWalletId = id();
                         agentWalletIds.push(agentWalletId);
 
-                        return db.tx.agentWallets[agentWalletId].update({
-                            address: wallet.address,
-                            privateKey: wallet.privateKey, // TODO: Encrypt in production
-                            seatNumber: wallet.seatNumber,
-                            balance: amountPerAgentInOctas / 100_000_000,
-                            initialBalance: amountPerAgentInOctas / 100_000_000,
-                            createdAt: Date.now(),
-                        });
+                        return db.tx.agentWallets[agentWalletId]
+                            .update({
+                                address: wallet.address,
+                                privateKey: wallet.privateKey, // TODO: Encrypt in production
+                                seatNumber: wallet.seatNumber,
+                                agentName: wallet.modelName || `Agent Seat ${wallet.seatNumber + 1}`,
+                                balance: chipsPerAgentInOctas / 100_000_000, // Only chips (not gas buffer)
+                                initialBalance: chipsPerAgentInOctas / 100_000_000,
+                                createdAt: Date.now(),
+                            })
+                            .link({ game: gameId }); // Link wallet to game!
                     });
 
                     await db.transact(agentWalletTransactions);
@@ -187,6 +225,7 @@ export async function POST(request: NextRequest) {
             success: true,
             txHash,
             paymentId,
+            gameId, // Return gameId for game creation
             message: "Payment processed successfully",
             amount: amountInOctas / 100_000_000,
             agentWallets: agentWalletIds.length > 0 ? {

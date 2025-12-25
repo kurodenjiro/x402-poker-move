@@ -87,31 +87,68 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate a game ID upfront to return to the client
-    const gameId = id();
+    // If gameId is provided (from payment/wallet creation), use it
+    // Otherwise generate a new one
+    const gameId = body.gameId || id();
+    const isFromPayment = !!body.gameId;
 
-    // Create a minimal game record immediately so the page doesn't 404
-    // The workflow will replace this with the full game including real players
+    console.log(`🎮 Using game ID: ${gameId}${isFromPayment ? ' (from payment)' : ' (new)'}`)
+
+      ;
+
+    // Create or update game record
+    // If gameId came from payment, the game entity already exists with payment/wallet links
+    // We need to UPDATE it without breaking those relationships
     const placeholderPlayerId = id();
-    await db.transact([
-      db.tx.games[gameId].update({
-        totalRounds: numberOfHands,
-        createdAt: DateTime.now().toISO(),
-        buttonPosition: 0,
-        currentActivePosition: null,
-        deck: { cards: [] },
-        customGame: true,
-      }),
-      // Create a placeholder player so the frontend doesn't see "no players"
-      db.tx.players[placeholderPlayerId]
-        .update({
-          name: "Initializing...",
-          stack: 0,
-          status: "folded",
-          model: "initializing",
+
+    if (isFromPayment) {
+      // Game already exists from payment - just update game-specific fields
+      // and add placeholder player
+      console.log(`♻️  Updating existing game from payment: ${gameId}`);
+      await db.transact([
+        db.tx.games[gameId].update({
+          totalRounds: numberOfHands,
+          buttonPosition: 0,
+          currentActivePosition: null,
+          deck: { cards: [] },
+          customGame: true,
+          // Note: createdAt already set during payment, don't overwrite
+        }),
+        // Create a placeholder player so the frontend doesn't see "no players"
+        db.tx.players[placeholderPlayerId]
+          .update({
+            name: "Initializing...",
+            stack: 0,
+            status: "folded",
+            model: "initializing",
+            createdAt: DateTime.now().toISO(),
+          })
+          .link({ game: gameId })
+      ]);
+    } else {
+      // New game (no payment) - create from scratch
+      console.log(`🆕 Creating new game: ${gameId}`);
+      await db.transact([
+        db.tx.games[gameId].update({
+          totalRounds: numberOfHands,
           createdAt: DateTime.now().toISO(),
-        })
-        .link({ game: gameId })
-    ]);
+          buttonPosition: 0,
+          currentActivePosition: null,
+          deck: { cards: [] },
+          customGame: true,
+        }),
+        // Create a placeholder player so the frontend doesn't see "no players"
+        db.tx.players[placeholderPlayerId]
+          .update({
+            name: "Initializing...",
+            stack: 0,
+            status: "folded",
+            model: "initializing",
+            createdAt: DateTime.now().toISO(),
+          })
+          .link({ game: gameId })
+      ]);
+    }
 
     // Trigger the Upstash Workflow
     // The workflow will delete the placeholder and create real players

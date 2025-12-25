@@ -150,13 +150,14 @@ export default function Home() {
       return;
     }
 
-    // Show payment modal instead of starting directly
+    // Step 1: Show payment modal (doesn't start game yet)
     setError(null);
     setShowPaymentModal(true);
   };
 
-  const startGame = async () => {
-    console.log("[startGame] Starting after payment");
+  // Step 2: Called after payment succeeds with txHash and gameId from wallet creation
+  const startGame = async (txHash?: string, gameId?: string) => {
+    console.log("[startGame] Starting after payment", { txHash, gameId });
     setIsStartingGame(true);
     setShowPaymentModal(false);
 
@@ -186,6 +187,7 @@ export default function Home() {
         players,
         startingStack,
         numberOfHands,
+        gameId, // Pass gameId so wallets can be linked
       });
 
       const response = await fetch("/api/run-simulation", {
@@ -197,6 +199,7 @@ export default function Home() {
           players,
           startingStack: startingStack,
           numberOfHands: numberOfHands,
+          gameId, // Include gameId from payment/wallet creation
         }),
       });
 
@@ -356,9 +359,9 @@ export default function Home() {
         startingStack={startingStack}
         participants={numParticipants}
         seatSelections={seatSelections}
-        onPaymentSuccess={(txHash) => {
-          setPaymentTxHash(txHash);
-          startGame();
+        onPaymentSuccess={(txHash, gameId) => {
+          console.log("[PaymentModal] Payment success callback", { txHash, gameId });
+          startGame(txHash, gameId);
         }}
       />
 
@@ -550,23 +553,6 @@ const ConfigurationSidebar = ({
       <div className="overflow-y-auto flex-1">
         {activeTab === "settings" && (
           <div className="space-y-0">
-            {/* Info Section - API configured server-side */}
-            <div className="bg-dark-2 border-b border-dark-5">
-              <div className="p-3 2xl:p-4 border-b border-dark-5">
-                <h3 className="text-xs 2xl:text-sm font-medium uppercase text-text-bright">
-                  AI Provider
-                </h3>
-              </div>
-              <div className="p-3 2xl:p-4">
-                <div className="flex items-center gap-2 2xl:gap-3">
-                  <div className="w-2 h-2 2xl:w-2.5 2xl:h-2.5 bg-green-500 rounded-full"></div>
-                  <span className="text-xs 2xl:text-sm text-text-medium">Vercel AI Gateway</span>
-                </div>
-                <p className="text-xs 2xl:text-sm text-text-dim mt-2 2xl:mt-3">
-                  Configured via server environment
-                </p>
-              </div>
-            </div>
 
             {/* Game Settings Section */}
             <div className="bg-dark-2 border-b border-dark-5">

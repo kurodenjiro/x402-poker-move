@@ -18,6 +18,7 @@ import AnimatedFramedLink from "../../components/AnimatedFramedLink";
 
 import GameSidebar, { CornerBorders } from "../../components/GameSidebar";
 import Footer from "../../components/Footer";
+import AgentPaymentProcessor from "../../components/AgentPaymentProcessor";
 
 // ID for app: LLM Poker
 const APP_ID = process.env.NEXT_PUBLIC_INSTANT_APP_ID || "";
@@ -65,16 +66,16 @@ export default function GamePage({
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(true);
   const [selectedPlayer, setSelectedPlayer] = useState<
     | (InstaQLEntity<AppSchema, "players"> & {
-        transactions: InstaQLEntity<AppSchema, "transactions">[];
-        actions?: Array<
-          InstaQLEntity<
-            AppSchema,
-            "actions",
-            { bettingRound: object; gameRound: object }
-          >
-        >;
-        notes?: string;
-      })
+      transactions: InstaQLEntity<AppSchema, "transactions">[];
+      actions?: Array<
+        InstaQLEntity<
+          AppSchema,
+          "actions",
+          { bettingRound: object; gameRound: object }
+        >
+      >;
+      notes?: string;
+    })
     | null
   >(null);
 
@@ -292,7 +293,7 @@ export default function GamePage({
                     button={game.buttonPosition === 0}
                     lastAction={
                       game.players[0]?.actions?.[
-                        game.players[0]?.actions?.length - 1
+                      game.players[0]?.actions?.length - 1
                       ]
                     }
                     data={data}
@@ -311,7 +312,7 @@ export default function GamePage({
                     button={game.buttonPosition === 1}
                     lastAction={
                       game.players[1]?.actions?.[
-                        game.players[1]?.actions?.length - 1
+                      game.players[1]?.actions?.length - 1
                       ]
                     }
                     data={data}
@@ -330,7 +331,7 @@ export default function GamePage({
                     button={game.buttonPosition === 2}
                     lastAction={
                       game.players[2]?.actions?.[
-                        game.players[2]?.actions?.length - 1
+                      game.players[2]?.actions?.length - 1
                       ]
                     }
                     data={data}
@@ -356,7 +357,7 @@ export default function GamePage({
                     button={game.buttonPosition === 5}
                     lastAction={
                       game.players[5]?.actions?.[
-                        game.players[5]?.actions?.length - 1
+                      game.players[5]?.actions?.length - 1
                       ]
                     }
                     data={data}
@@ -375,7 +376,7 @@ export default function GamePage({
                     button={game.buttonPosition === 4}
                     lastAction={
                       game.players[4]?.actions?.[
-                        game.players[4]?.actions?.length - 1
+                      game.players[4]?.actions?.length - 1
                       ]
                     }
                     data={data}
@@ -394,7 +395,7 @@ export default function GamePage({
                     button={game.buttonPosition === 3}
                     lastAction={
                       game.players[3]?.actions?.[
-                        game.players[3]?.actions?.length - 1
+                      game.players[3]?.actions?.length - 1
                       ]
                     }
                     data={data}
@@ -426,6 +427,8 @@ export default function GamePage({
         </div> */}
       </div>
       <Footer />
+      {/* Invisible component that watches for completed hands and triggers payments */}
+      <AgentPaymentProcessor gameId={gameId} />
     </div>
   );
 }
@@ -500,7 +503,7 @@ const Player = ({
   const lastActionFolded =
     lastAction?.type === "fold" &&
     lastAction?.gameRound?.id ===
-      data?.games?.[0]?.gameRounds?.[data.games[0].gameRounds.length - 1]?.id;
+    data?.games?.[0]?.gameRounds?.[data.games[0].gameRounds.length - 1]?.id;
 
   const playerEquity = equity.find(
     (e) =>
@@ -515,11 +518,9 @@ const Player = ({
   return (
     <div
       onClick={() => onSelect(player)}
-      className={`p-px bg-dark-4 overflow-hidden relative ${
-        active ? "border-animation" : ""
-      } h-full min-h-[180px] 2xl:min-h-[240px] flex flex-col ${
-        lastActionFolded ? "opacity-50" : ""
-      } transition-colors cursor-pointer group`}
+      className={`p-px bg-dark-4 overflow-hidden relative ${active ? "border-animation" : ""
+        } h-full min-h-[180px] 2xl:min-h-[240px] flex flex-col ${lastActionFolded ? "opacity-50" : ""
+        } transition-colors cursor-pointer group`}
     >
       <div className="relative grid grid-cols-1 divide-dark-5 flex-1 bg-dark-2 hover:bg-dark-3 transition-colors">
         <div className="flex flex-col lg:flex-row items-start gap-4 2xl:gap-6 justify-between p-4 2xl:p-6 h-full">
@@ -569,13 +570,13 @@ const Player = ({
           )}
           <div className="flex flex-col p-4 2xl:p-6 shrink-0 gap-1 2xl:gap-2">
             {lastAction?.reasoning &&
-            (
-              lastAction as InstaQLEntity<
-                AppSchema,
-                "actions",
-                { bettingRound: object; gameRound: object }
-              >
-            )?.gameRound?.id ===
+              (
+                lastAction as InstaQLEntity<
+                  AppSchema,
+                  "actions",
+                  { bettingRound: object; gameRound: object }
+                >
+              )?.gameRound?.id ===
               data?.games?.[0]?.gameRounds?.[
                 data.games[0].gameRounds.length - 1
               ]?.id ? (
@@ -585,8 +586,8 @@ const Player = ({
                     {lastAction.reasoning?.includes("Posted the small blind")
                       ? "SMALL BLIND"
                       : lastAction.reasoning?.includes("Posted the big blind")
-                      ? "BIG BLIND"
-                      : lastAction?.type}
+                        ? "BIG BLIND"
+                        : lastAction?.type}
                   </div>
 
                   {Number(lastAction?.amount) > 0 && (
@@ -637,21 +638,18 @@ const Table = ({ cards, pot }: { cards: string[]; pot: number }) => {
       <div className="flex flex-col items-center justify-center relative z-10 h-40 2xl:h-56">
         {/* Pot display - show placeholder when empty */}
         <div
-          className={`flex flex-row items-center gap-1 2xl:gap-2 bg-dark-2 border px-3 py-2 2xl:px-4 2xl:py-3 ${
-            Number(pot) > 0 ? "border-dark-6" : "border-dark-5 border-dashed"
-          }`}
+          className={`flex flex-row items-center gap-1 2xl:gap-2 bg-dark-2 border px-3 py-2 2xl:px-4 2xl:py-3 ${Number(pot) > 0 ? "border-dark-6" : "border-dark-5 border-dashed"
+            }`}
         >
           <DiamondsFourIcon
             size={14}
-            className={`2xl:w-5 2xl:h-5 ${
-              Number(pot) > 0 ? "text-green-500" : "text-dark-6"
-            }`}
+            className={`2xl:w-5 2xl:h-5 ${Number(pot) > 0 ? "text-green-500" : "text-dark-6"
+              }`}
             weight="fill"
           />
           <div
-            className={`text-xs 2xl:text-base ${
-              Number(pot) > 0 ? "text-text-medium" : "text-dark-6"
-            }`}
+            className={`text-xs 2xl:text-base ${Number(pot) > 0 ? "text-text-medium" : "text-dark-6"
+              }`}
           >
             {Number(pot) > 0 ? <NumberFlow value={pot} /> : "0"}
           </div>

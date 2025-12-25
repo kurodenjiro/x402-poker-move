@@ -58,7 +58,9 @@ export function calculatePaymentAmount(
     // Convert stack to MOVE (1 MOVE = 10,000 stack)
     const moveAmount = stackPerPlayer / PAYMENT_CONFIG.STACK_PER_MOVE;
 
-    return Math.max(moveAmount, PAYMENT_CONFIG.MIN_PAYMENT_MOVE);
+    // Double the payment to ensure sufficient gas buffer for agent wallets
+    // (Movement Network requires larger reserves for transaction fees + minimum balance)
+    return Math.max(moveAmount * 2, PAYMENT_CONFIG.MIN_PAYMENT_MOVE);
 }
 
 /**

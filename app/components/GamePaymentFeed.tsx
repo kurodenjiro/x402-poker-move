@@ -18,19 +18,37 @@ interface GamePaymentFeedProps {
 }
 
 export default function GamePaymentFeed({ gameId }: GamePaymentFeedProps) {
-    // Query all payments in real-time (filtering by game will be added later)
+    // Query payments and agent wallets for THIS GAME ONLY
     const { data, isLoading } = db.useQuery({
         payments: {
             $: {
+                where: {
+                    game: gameId, // ← Filter by current game!
+                },
                 order: {
                     createdAt: "desc",
                 },
                 limit: 50,
             },
         },
+        agentWallets: {
+            $: {
+                where: {
+                    game: gameId, // ← Filter by current game!
+                },
+            },
+        },
     });
 
     const payments = data?.payments || [];
+    const agentWallets = data?.agentWallets || [];
+
+    // Helper function to get agent name from address
+    const getAgentName = (address: string | undefined) => {
+        if (!address) return "Unknown";
+        const agent = agentWallets.find((w: any) => w.address === address);
+        return agent?.agentName || `Seat ${(agent?.seatNumber ?? 0) + 1}` || address.slice(0, 6) + "...";
+    };
 
     if (isLoading) {
         return (
@@ -83,16 +101,40 @@ export default function GamePaymentFeed({ gameId }: GamePaymentFeedProps) {
                                     {formatMoveAmount(payment.amount)}
                                 </span>
                                 <ArrowRight size={14} className="text-text-dim" />
-                                <span className="text-xs text-text-dim font-mono truncate">
-                                    {payment.walletAddress?.slice(0, 8)}...{payment.walletAddress?.slice(-4)}
-                                </span>
+                                {payment.paymentType === 'agent_transfer' && payment.fromAddress && payment.toAddress ? (
+                                    <>
+                                        <span className="text-xs text-orange-400 font-semibold">
+                                            {getAgentName(payment.fromAddress)}
+                                        </span>
+                                        <ArrowRight size={12} className="text-orange-500" weight="bold" />
+                                        <span className="text-xs text-blue-400 font-semibold">
+                                            {getAgentName(payment.toAddress)}
+                                        </span>
+                                    </>
+                                ) : (
+                                    <span className="text-xs text-text-dim font-mono truncate">
+                                        {payment.walletAddress?.slice(0, 8)}...{payment.walletAddress?.slice(-4)}
+                                    </span>
+                                )}
                             </div>
-                            <div className="text-xs text-text-dim mt-0.5">
-                                {paymentDate.toLocaleTimeString([], {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                    second: "2-digit",
-                                })}
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs text-text-dim">
+                                    {paymentDate.toLocaleTimeString([], {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                        second: "2-digit",
+                                    })}
+                                </span>
+                                {payment.chipAmount && (
+                                    <span className="text-xs text-yellow-400">
+                                        ({payment.chipAmount.toLocaleString()} chips)
+                                    </span>
+                                )}
+                                {payment.handNumber && (
+                                    <span className="text-xs text-text-dim">
+                                        Hand #{payment.handNumber}
+                                    </span>
+                                )}
                             </div>
                             {payment.txHash && (
                                 <a
@@ -106,9 +148,17 @@ export default function GamePaymentFeed({ gameId }: GamePaymentFeedProps) {
                             )}
                         </div>
 
-                        {/* Amount Badge */}
-                        <div className="flex-shrink-0">
-                            <div className={`text-xs font-medium px-2 py-1 ${isConfirmed
+                        {/* Payment Type & Status Badge */}
+                        <div className="flex-shrink-0 flex flex-col gap-1">
+                            {payment.paymentType && (
+                                <div className={`text-xs font-medium px-2 py-1 text-center ${payment.paymentType === 'agent_transfer'
+                                    ? 'bg-purple-950/30 text-purple-400 border border-purple-900/50'
+                                    : 'bg-blue-950/30 text-blue-400 border border-blue-900/50'
+                                    }`}>
+                                    {payment.paymentType === 'agent_transfer' ? 'Agent Pay' : 'Entry Fee'}
+                                </div>
+                            )}
+                            <div className={`text-xs font-medium px-2 py-1 text-center ${isConfirmed
                                 ? "bg-green-950/30 text-green-400 border border-green-900/50"
                                 : "bg-yellow-950/30 text-yellow-400 border border-yellow-900/50"
                                 }`}>

@@ -11,7 +11,7 @@ interface PaymentModalProps {
     startingStack: number;
     participants: number;
     seatSelections: any[]; // Array of seat configurations
-    onPaymentSuccess: (txHash: string) => void;
+    onPaymentSuccess: (txHash: string, gameId?: string) => void;
 }
 
 export default function PaymentModal({
@@ -113,16 +113,17 @@ export default function PaymentModal({
                 throw new Error(submitData.error || "Failed to submit payment transaction");
             }
 
-            const { txHash, explorerUrl } = submitData;
+            const { txHash, explorerUrl, gameId } = submitData;
 
             console.log("✅ Payment transaction confirmed:", txHash);
             if (explorerUrl) {
                 console.log("🔗 View on explorer:", explorerUrl);
             }
+            console.log("🎮 Game ID:", gameId);
 
             setSuccess(true);
             setTimeout(() => {
-                onPaymentSuccess(txHash);
+                onPaymentSuccess(txHash, gameId); // Pass both txHash and gameId
             }, 1500);
 
         } catch (err) {

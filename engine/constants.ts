@@ -3,9 +3,9 @@
 export const GAME_CONFIG = {
   INITIAL_STACK: 2000,
   HANDS_PER_GAME: 3,
-  SMALL_BLIND: 5,
-  BIG_BLIND: 10,
-  MIN_BET: 5,
+  SMALL_BLIND: 50,  // Increased from 5 to 50 (10x)
+  BIG_BLIND: 100,   // Increased from 10 to 100 (10x)
+  MIN_BET: 50,      // Increased from 5 to 50 (10x)
   PLAYER_COUNT: 6,
   WAIT_TIME_SECONDS: 3,
   MAX_DURATION: 100000, // 100 seconds
@@ -51,15 +51,15 @@ export function createDeck(): string[] {
   const suits = ['c', 'h', 'd', 's'];
   const ranks = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
   const deck: string[] = [];
-  
+
   for (const rank of ranks) {
     for (const suit of suits) {
       deck.push(`${rank}${suit}`);
     }
   }
-  
+
   return deck;
-} 
+}
 
 export const OPENROUTER_MODELS = [
   { id: "google/gemini-2.0-flash-001", name: "Gemini 2.0 Flash" },
