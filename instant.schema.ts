@@ -146,7 +146,7 @@ const _schema = i.schema({
     },
     paymentGame: {
       forward: { on: "payments", has: "one", label: "game" },
-      reverse: { on: "games", has: "one", label: "payment" }
+      reverse: { on: "games", has: "many", label: "payments" }
     },
     agentWalletGame: {
       forward: { on: "agentWallets", has: "one", label: "game" },

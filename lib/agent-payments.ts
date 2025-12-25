@@ -24,32 +24,48 @@ export async function transferBetweenAgents(
     amountInOctas: number
 ): Promise<string> {
     try {
-        // Create account from private key
+        // Create sender account from private key
         const senderAccount = accountFromPrivateKey(fromPrivateKey);
         const senderAddress = padAddressToAptos(senderAccount.accountAddress.toString());
         const recipientAddress = padAddressToAptos(toAddress);
 
-        console.log(`💸 Agent payment: ${senderAddress.slice(0, 10)}... → ${recipientAddress.slice(0, 10)}... (${amountInOctas / 100_000_000} MOVE)`);
+        // Get sponsor account from environment
+        const sponsorPrivateKey = process.env.SPONSOR_PRIVATE_KEY || process.env.MOVEMENT_PRIVATE_KEY;
+        if (!sponsorPrivateKey) {
+            throw new Error("SPONSOR_PRIVATE_KEY not found in environment");
+        }
+        const sponsorAccount = accountFromPrivateKey(sponsorPrivateKey);
 
-        // Build transaction
+        console.log(`💸 Agent payment: ${senderAddress.slice(0, 10)}... → ${recipientAddress.slice(0, 10)}... (${amountInOctas / 100_000_000} MOVE)`);
+        console.log(`⛽ Sponsor: ${sponsorAccount.accountAddress.toString().slice(0, 10)}... will pay gas`);
+
+        // Build transaction with fee payer enabled
         const transaction = await aptos.transaction.build.simple({
             sender: senderAddress,
             data: {
                 function: "0x1::aptos_account::transfer",
                 functionArguments: [recipientAddress, amountInOctas],
             },
+            withFeePayer: true,  // Enable sponsored transaction
         });
 
-        // Sign transaction
+        // Sign as sender (agent wallet)
         const senderAuthenticator = aptos.transaction.sign({
             signer: senderAccount,
             transaction,
         });
 
-        // Submit transaction
+        // Sign as fee payer (sponsor wallet)
+        const feePayerAuthenticator = aptos.transaction.signAsFeePayer({
+            signer: sponsorAccount,
+            transaction,
+        });
+
+        // Submit transaction with both signatures
         const pendingTx = await aptos.transaction.submit.simple({
             transaction,
             senderAuthenticator,
+            feePayerAuthenticator,
         });
 
         // Wait for confirmation

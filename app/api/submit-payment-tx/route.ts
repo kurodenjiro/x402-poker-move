@@ -152,27 +152,16 @@ export async function POST(request: NextRequest) {
             if (aiAgents.length > 0) {
                 console.log(`🤖 Generating ${aiAgents.length} agent wallets...`);
 
-                // Reserve gas buffer for all agents (0.05 MOVE per agent for safety)
-                const GAS_BUFFER_PER_AGENT = 0.05 * 100_000_000; // 0.05 MOVE in octas
-                const totalGasBuffer = GAS_BUFFER_PER_AGENT * aiAgents.length;
+                // With sponsored transactions, agents don't need gas - sponsor pays it all!
+                const chipsPerAgentInOctas = Math.floor(amountInOctas / aiAgents.length);
+                console.log(`💰 Each agent gets: ${chipsPerAgentInOctas / 100_000_000} MOVE (chips only, gas sponsored)`);
 
-                // Calculate chips per agent from remaining amount after gas buffer
-                const chipsToDistribute = amountInOctas - totalGasBuffer;
-                const chipsPerAgentInOctas = Math.floor(chipsToDistribute / aiAgents.length);
-
-                // Total amount per agent = chips + gas buffer
-                const amountPerAgentInOctas = chipsPerAgentInOctas + GAS_BUFFER_PER_AGENT;
-
-                console.log(`💰 Fund distribution per agent:`);
-                console.log(`   Chips: ${chipsPerAgentInOctas / 100_000_000} MOVE`);
-                console.log(`   Gas buffer: ${GAS_BUFFER_PER_AGENT / 100_000_000} MOVE`);
-                console.log(`   Total: ${amountPerAgentInOctas / 100_000_000} MOVE`);
 
                 // Generate wallets for each AI agent
                 // Track which original seat index each AI agent came from
                 const agentWallets = aiAgents.map((seat: any) => {
                     const wallet = generateAgentWallet();
-                    const actualSeatNumber = seatSelections.indexOf(seat); // Actual seat in game (0-5)
+                    const actualSeatNumber = seatSelections.indexOf(seat);
 
                     console.log(`   Creating wallet for seat ${actualSeatNumber}: ${seat.model?.name}`);
 
@@ -188,7 +177,7 @@ export async function POST(request: NextRequest) {
                     distributionTxHashes = await distributeToAgents(
                         serverAccount,
                         agentWallets.map(w => w.address),
-                        amountPerAgentInOctas
+                        chipsPerAgentInOctas
                     );
 
                     console.log(`✅ Distributed funds to ${agentWallets.length} agents`);

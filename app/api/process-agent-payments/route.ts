@@ -99,12 +99,20 @@ export async function POST(request: NextRequest) {
                         }
 
                         // Execute blockchain transfer
-                        console.log(`  📤 Executing transfer...`);
+                        // CRITICAL: Blockchain reserves gas BEFORE executing transfer
+                        // Keep at least 0.1 MOVE in wallet to ensure gas can always be paid
+                        // With sponsored transactions, transfer the full chip amount
+                        // No need to reserve gas - sponsor wallet pays it!
+                        const transferAmount = chipsToOctas(paymentAmount);
+                        
+                        console.log(`  📤 Transferring ${transferAmount / 100_000_000} MOVE (sponsor pays gas)...`);
                         const txHash = await transferBetweenAgents(
                             loserWallet.privateKey,
                             winnerWallet.address,
-                            chipsToOctas(paymentAmount)
+                            transferAmount
                         );
+
+                        console.log(`  ✅ Blockchain confirmed, attempting database save...`);
 
                         // Save to database with game link
                         const paymentId = id();
@@ -114,6 +122,7 @@ export async function POST(request: NextRequest) {
                                     txHash,
                                     amount: paymentAmount / 10_000,
                                     currency: "MOVE",
+                                    walletAddress: loserWallet.address, // Required field
                                     fromAddress: loserWallet.address,
                                     toAddress: winnerWallet.address,
                                     chipAmount: paymentAmount,
@@ -134,8 +143,9 @@ export async function POST(request: NextRequest) {
                             txHash
                         });
                     } catch (error: any) {
-                        console.error(`  ❌ FAILED: ${error.message}`);
-                        results.push({ error: error.message });
+                        console.error(`  ❌ FAILED:`, error);
+                        console.error(`  ❌ Error details:`, JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+                        results.push({ error: error?.message || String(error) });
                     }
                 }
             }
