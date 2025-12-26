@@ -273,13 +273,13 @@ export default function AnalysisPage() {
                       fontSize: "12px",
                     }}
                     labelStyle={{ color: "var(--text-dim)", fontSize: "11px" }}
-                    formatter={(value: number, name: string) => [
+                    formatter={(value: any, name: any) => [
                       <span
                         key={`${name}-${value}`}
                         className="flex items-center gap-1 text-text-medium"
                       >
                         <span className="text-green-500">¤</span>
-                        <NumberFlow value={value} />
+                        <NumberFlow value={Number(value) || 0} />
                       </span>,
                       name,
                     ]}
@@ -409,19 +409,17 @@ export default function AnalysisPage() {
                       )}
                       <DiamondsFourIcon
                         size={10}
-                        className={`2xl:w-3 2xl:h-3 ${
-                          player.totalWinnings >= 0
-                            ? "text-green-500"
-                            : "text-red-500"
-                        }`}
+                        className={`2xl:w-3 2xl:h-3 ${player.totalWinnings >= 0
+                          ? "text-green-500"
+                          : "text-red-500"
+                          }`}
                         weight="fill"
                       />
                       <div
-                        className={`text-xs 2xl:text-sm ${
-                          player.totalWinnings >= 0
-                            ? "text-green-400"
-                            : "text-red-400"
-                        }`}
+                        className={`text-xs 2xl:text-sm ${player.totalWinnings >= 0
+                          ? "text-green-400"
+                          : "text-red-400"
+                          }`}
                       >
                         <NumberFlow value={player.totalWinnings} />
                       </div>
