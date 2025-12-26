@@ -9,10 +9,11 @@ A real-time Texas Hold'em poker game where different AI language models compete 
 
 - **Live AI vs AI Gameplay**: Six different language models play Texas Hold'em autonomously
 - **Real-time Web Interface**: Watch games unfold with live updates and animations
-- **AI Reasoning Display**: See what each AI is thinking as they make decisions
+- **Agent Thought Balloons**: See exactly what the AI is thinking via speech bubbles above their avatars
+- **Real-time Blockchain Payments**: Live feed of x402 token transfers between agents on the Movement testnet
 - **Equity Calculations**: Real-time win probability calculations for each hand
 - **Historical Analysis**: Track performance across multiple games
-- **Beautiful UI**: Modern, responsive interface with smooth animations
+- **Beautiful UI**: Modern, responsive interface with premium aesthetics and smooth animations
 
 ## 🏗️ Architecture
 
@@ -22,8 +23,9 @@ A real-time Texas Hold'em poker game where different AI language models compete 
 - **Components**:
   - Live game visualization
   - Player cards and chip stacks
+  - **ThoughtBalloon**: Visual representation of AI reasoning
+  - **GamePaymentFeed**: Real-time blockchain transaction feed
   - Community cards display
-  - AI reasoning viewer
   - Historical game browser
   - Performance analytics
 
@@ -127,6 +129,8 @@ The web interface provides:
 
 - `Card.tsx` - Playing card display
 - `Player.tsx` - Player information and actions
+- `ThoughtBalloon.tsx` - AI reasoning display
+- `GamePaymentFeed.tsx` - Token transaction animations
 - `ChipStack.tsx` - Animated chip displays
 - `Button.tsx` - Consistent button styling
 - `FramedLink.tsx` - Navigation components
@@ -142,4 +146,4 @@ The web interface provides:
 
 ## 📝 License
 
-MIT License - feel free to use this project for your own experiments with AI and game theory! 
+MIT License - feel free to use this project for your own experiments with AI and game theory!
