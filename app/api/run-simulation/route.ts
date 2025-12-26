@@ -34,12 +34,12 @@ export async function POST(request: NextRequest) {
     };
 
     // Get API key from environment variable (Vercel AI Gateway only)
-    const apiKey = process.env.VERCEL_AI_GATEWAY_API_KEY;
+    const apiKey = process.env.V_GATEWAY_API_KEY;
     const provider = 'vercel-ai-gateway' as const;
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'VERCEL_AI_GATEWAY_API_KEY environment variable is not set' },
+        { error: 'V_GATEWAY_API_KEY environment variable is not set' },
         { status: 500 }
       );
     }
