@@ -20,70 +20,87 @@ export async function POST(request: NextRequest) {
             senderAddress,
             recipientAddress,
             amountInOctas,
-            seatSelections, // Array of seat configurations
+            txHash,  // Optional: User-provided signed transaction hash (user-signed flow)
+            seatSelections,
+            startingStack,
         } = body;
 
-        console.log("✅ Submitting payment transaction:", {
-            sender: senderAddress,
-            recipient: recipientAddress,
-            amount: (amountInOctas / 100_000_000).toFixed(4) + " MOVE",
-        });
+        let finalTxHash: string;
 
-        // Check if we have a server private key
-        const serverPrivateKey = process.env.MOVEMENT_PRIVATE_KEY;
+        // Server-signed flow: Create, sign, and submit transaction
+        if (!txHash) {
+            console.log("📝 Server-signed payment flow:");
 
-        if (!serverPrivateKey) {
-            throw new Error(
-                "Server wallet not configured. Please set MOVEMENT_PRIVATE_KEY environment variable to enable real blockchain transactions."
-            );
+            if (!senderAddress || !recipientAddress || !amountInOctas) {
+                throw new Error("senderAddress, recipientAddress, and amountInOctas are required for server-signed payments");
+            }
+
+            // Use server wallet to sign and submit
+            const serverPrivateKey = process.env.MOVEMENT_PRIVATE_KEY;
+            if (!serverPrivateKey) {
+                throw new Error("Server wallet required for server-signed payments");
+            }
+
+            const privateKey = new Ed25519PrivateKey(serverPrivateKey);
+            const serverAccount = Account.fromPrivateKey({ privateKey });
+
+            console.log("✅ Creating and signing payment transaction:", {
+                from: serverAccount.accountAddress.toString(),
+                to: recipientAddress,
+                amount: `${amountInOctas / 100_000_000} MOVE`
+            });
+
+            // Build and submit transaction
+            const transaction = await aptos.transaction.build.simple({
+                sender: serverAccount.accountAddress,
+                data: {
+                    function: "0x1::aptos_account::transfer",
+                    functionArguments: [recipientAddress, amountInOctas],
+                },
+            });
+
+            const committedTxn = await aptos.signAndSubmitTransaction({
+                signer: serverAccount,
+                transaction,
+            });
+
+            console.log("⏳ Waiting for server-signed transaction confirmation...");
+            const executedTransaction = await aptos.waitForTransaction({
+                transactionHash: committedTxn.hash,
+            });
+
+            if (!executedTransaction.success) {
+                throw new Error("Server-signed transaction failed on blockchain");
+            }
+
+            finalTxHash = committedTxn.hash;
+            console.log("✅ Server-signed transaction confirmed:", finalTxHash);
         }
+        // User-signed flow: Wait for user's transaction
+        else {
+            console.log("✅ User-signed payment flow:");
+            console.log("⏳ Waiting for user transaction confirmation:", txHash);
 
+            const executedTransaction = await aptos.waitForTransaction({
+                transactionHash: txHash,
+            });
 
-        // Create server account from private key
-        const privateKey = new Ed25519PrivateKey(serverPrivateKey);
-        const serverAccount = Account.fromPrivateKey({ privateKey });
+            console.log("✅ User transaction confirmed:", executedTransaction.hash);
 
-        console.log("🔐 Signing with server wallet:", serverAccount.accountAddress.toString());
+            // Verify transaction was successful
+            if (!executedTransaction.success) {
+                throw new Error("User transaction failed on blockchain");
+            }
 
-        // Deserialize the transaction from base64
-        const transactionBytes = Buffer.from(transactionBase64, 'base64');
-        const deserializer = new Deserializer(new Uint8Array(transactionBytes));
-        const transaction = SimpleTransaction.deserialize(deserializer);
-
-        // Sign the transaction with server account
-        const senderAuthenticator = aptos.transaction.sign({
-            signer: serverAccount,
-            transaction: transaction,
-        });
-
-        // Submit the signed transaction
-        const pendingTransaction = await aptos.transaction.submit.simple({
-            transaction: transaction,
-            senderAuthenticator: senderAuthenticator,
-        });
-
-        console.log("📤 Transaction submitted:", pendingTransaction.hash);
-
-        // Wait for transaction confirmation
-        const executedTransaction = await aptos.waitForTransaction({
-            transactionHash: pendingTransaction.hash,
-        });
-
-        console.log("✅ Transaction confirmed:", executedTransaction.hash);
-
-        // Verify transaction was successful
-        if (!executedTransaction.success) {
-            throw new Error("Transaction failed on blockchain");
+            finalTxHash = txHash;
         }
-
-        const txHash = executedTransaction.hash;
 
         // Check if payment already exists in database
         const existingPayment = await db.query({
             payments: {
                 $: {
                     where: {
-                        txHash: txHash
+                        txHash: finalTxHash
                     }
                 }
             }
@@ -93,15 +110,15 @@ export async function POST(request: NextRequest) {
             const existing = existingPayment.payments[0];
             console.log("ℹ️ Payment already recorded in database:", {
                 paymentId: existing.id,
-                txHash
+                txHash: finalTxHash
             });
 
             return NextResponse.json({
                 success: true,
-                txHash,
+                txHash: finalTxHash,
                 paymentId: existing.id,
                 message: "Payment already recorded",
-                amount: amountInOctas / 100_000_000,
+                amount: 0.2,
                 existing: true,
             });
         }
@@ -110,9 +127,9 @@ export async function POST(request: NextRequest) {
         const gameId = id();
         console.log(`🎮 Creating game entity with ID: ${gameId}`);
 
-        // Create game entity first (required for relationships to work!)
+        // Create game entity first (required for relationships to work!)  
         await db.transact([
-            db.tx.games[gameId].update({
+            db.tx.games[gameId].merge({
                 totalRounds: 0, // Will be updated when simulation runs
                 deck: [],
                 buttonPosition: 0,
@@ -125,8 +142,8 @@ export async function POST(request: NextRequest) {
         await db.transact([
             db.tx.payments[paymentId]
                 .update({
-                    txHash,
-                    amount: amountInOctas / 100_000_000,
+                    txHash: finalTxHash,
+                    amount: 0.2,
                     currency: "MOVE",
                     walletAddress: senderAddress,
                     paymentType: "entry_fee",
@@ -137,7 +154,7 @@ export async function POST(request: NextRequest) {
                 .link({ game: gameId }), // ← Link payment to game!
         ]);
 
-        console.log("💾 Payment saved and linked to game:", { paymentId, txHash, gameId });
+        console.log("💾 Payment saved and linked to game:", { paymentId, txHash: finalTxHash, gameId });
 
         // Generate agent wallets and distribute funds
         let agentWalletIds: string[] = [];
@@ -153,7 +170,7 @@ export async function POST(request: NextRequest) {
                 console.log(`🤖 Generating ${aiAgents.length} agent wallets...`);
 
                 // With sponsored transactions, agents don't need gas - sponsor pays it all!
-                const chipsPerAgentInOctas = Math.floor(amountInOctas / aiAgents.length);
+                const chipsPerAgentInOctas = Math.floor(20_000_000 / aiAgents.length);
                 console.log(`💰 Each agent gets: ${chipsPerAgentInOctas / 100_000_000} MOVE (chips only, gas sponsored)`);
 
 
@@ -172,11 +189,19 @@ export async function POST(request: NextRequest) {
                     };
                 });
 
-                // Distribute funds to agents
+                // Distribute funds to agents - need server wallet for this
+                const serverPrivateKey = process.env.MOVEMENT_PRIVATE_KEY;
+                if (!serverPrivateKey) {
+                    throw new Error("Server wallet required to fund agents");
+                }
+
+                const privateKey = new Ed25519PrivateKey(serverPrivateKey);
+                const serverAccount = Account.fromPrivateKey({ privateKey });
+
                 try {
                     distributionTxHashes = await distributeToAgents(
                         serverAccount,
-                        agentWallets.map(w => w.address),
+                        agentWallets.map((w: any) => w.address),
                         chipsPerAgentInOctas
                     );
 
@@ -216,7 +241,7 @@ export async function POST(request: NextRequest) {
             paymentId,
             gameId, // Return gameId for game creation
             message: "Payment processed successfully",
-            amount: amountInOctas / 100_000_000,
+            amount: 0.2,
             agentWallets: agentWalletIds.length > 0 ? {
                 count: agentWalletIds.length,
                 distributionTxHashes,

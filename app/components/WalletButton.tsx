@@ -5,21 +5,23 @@ import { Wallet, SignOut, Copy, Check } from "@phosphor-icons/react";
 import { useState, useEffect } from "react";
 import NumberFlow from "@number-flow/react";
 import { padAddressToAptos } from "@/lib/movement";
+import { useAptosWallet } from "@/hooks/useAptosWallet";
 
 export default function WalletButton() {
     const { ready, authenticated, user, login, logout } = usePrivy();
+    const { aptosAddress, isCreating } = useAptosWallet();
     const [balance, setBalance] = useState<number | null>(null);
     const [isLoadingBalance, setIsLoadingBalance] = useState(false);
     const [copied, setCopied] = useState(false);
     const [copiedPadded, setCopiedPadded] = useState(false);
     const [showDropdown, setShowDropdown] = useState(false);
 
-    // Fetch wallet balance when authenticated
+    // Fetch wallet balance when Aptos address is available
     useEffect(() => {
-        if (authenticated && user?.wallet?.address) {
-            fetchBalance(user.wallet.address);
+        if (authenticated && aptosAddress) {
+            fetchBalance(aptosAddress);
         }
-    }, [authenticated, user?.wallet?.address]);
+    }, [authenticated, aptosAddress]);
 
     const fetchBalance = async (address: string) => {
         setIsLoadingBalance(true);
@@ -41,17 +43,16 @@ export default function WalletButton() {
     };
 
     const copyAddress = async () => {
-        if (user?.wallet?.address) {
-            await navigator.clipboard.writeText(user.wallet.address);
+        if (aptosAddress) {
+            await navigator.clipboard.writeText(aptosAddress);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         }
     };
 
     const copyPaddedAddress = async () => {
-        if (user?.wallet?.address) {
-            const paddedAddress = padAddressToAptos(user.wallet.address);
-            await navigator.clipboard.writeText(paddedAddress);
+        if (aptosAddress) {
+            await navigator.clipboard.writeText(aptosAddress); // Already padded
             setCopiedPadded(true);
             setTimeout(() => setCopiedPadded(false), 2000);
         }
@@ -70,10 +71,12 @@ export default function WalletButton() {
     }
 
     if (authenticated && user) {
-        // Show connected wallet address
-        const displayAddress = user.wallet?.address
-            ? `${user.wallet.address.slice(0, 6)}...${user.wallet.address.slice(-4)}`
-            : user.email?.address || "Connected";
+        // Show Aptos wallet address
+        const displayAddress = isCreating
+            ? "Creating wallet..."
+            : aptosAddress
+                ? `${aptosAddress.slice(0, 6)}...${aptosAddress.slice(-4)}`
+                : user.email?.address || "No Aptos wallet";
 
         return (
             <div className="relative">
@@ -96,10 +99,10 @@ export default function WalletButton() {
                         <div className="p-4 space-y-3">
                             {/* Wallet Address */}
                             <div>
-                                <div className="text-xs text-text-dim uppercase mb-1">Wallet Address</div>
+                                <div className="text-xs text-text-dim uppercase mb-1">Aptos Wallet Address</div>
                                 <div className="flex items-center gap-2 bg-dark-3 border border-dark-5 p-2">
                                     <code className="text-xs text-text-medium font-mono flex-1 truncate">
-                                        {user.wallet?.address}
+                                        {aptosAddress || "No Aptos wallet"}
                                     </code>
                                     <button
                                         onClick={copyAddress}
@@ -123,7 +126,7 @@ export default function WalletButton() {
                                 </div>
                                 <div className="flex items-center gap-2 bg-dark-3 border border-orange-900/50 p-2">
                                     <code className="text-xs text-orange-300 font-mono flex-1 truncate">
-                                        {user.wallet?.address && padAddressToAptos(user.wallet.address)}
+                                        {aptosAddress || "No Aptos wallet"}
                                     </code>
                                     <button
                                         onClick={copyPaddedAddress}
@@ -138,7 +141,7 @@ export default function WalletButton() {
                                     </button>
                                 </div>
                                 <p className="text-xs text-text-dim mt-1">
-                                    64-character format required by Movement faucet
+                                    64-character Aptos format
                                 </p>
                             </div>
 

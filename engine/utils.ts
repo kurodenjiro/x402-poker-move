@@ -42,14 +42,14 @@ export function getPlayerIdAtPosition(players: Record<string, Player>, position:
  * @returns Position of the next non-empty seat
  */
 export function getNextNonEmptySeat(
-  players: Record<string, Player>, 
-  startPosition: number, 
+  players: Record<string, Player>,
+  startPosition: number,
   playerCount: number
 ): number {
   const playerArray = Object.values(players);
   let position = startPosition;
   let attempts = 0;
-  
+
   // Search for next non-empty seat (max attempts = playerCount to avoid infinite loop)
   while (attempts < playerCount) {
     const player = playerArray[position];
@@ -59,7 +59,7 @@ export function getNextNonEmptySeat(
     position = (position + 1) % playerCount;
     attempts++;
   }
-  
+
   // If all seats are empty (shouldn't happen), return start position
   return startPosition;
 }
@@ -145,23 +145,23 @@ export function markOthersAsNotActed(hands: Record<string, Hand>, currentPlayerI
 export function calculateSidePots(hands: Record<string, Hand>, mainPot: number): Pot[] {
   const pots: Pot[] = [];
   const allInAmounts = new Set<number>();
-  
+
   // Collect unique all-in amounts
   Object.values(hands).forEach(hand => {
     if (hand.allIn && hand.amount > 0) {
       allInAmounts.add(hand.amount);
     }
   });
-  
+
   // Sort amounts in ascending order
   const sortedAmounts = Array.from(allInAmounts).sort((a, b) => a - b);
-  
+
   let previousAmount = 0;
   for (const amount of sortedAmounts) {
     const eligiblePlayers = Object.values(hands)
       .filter(hand => !hand.folded && hand.amount >= amount)
       .map(hand => hand.playerId);
-    
+
     const potAmount = (amount - previousAmount) * eligiblePlayers.length;
     if (potAmount > 0) {
       pots.push({
@@ -169,22 +169,22 @@ export function calculateSidePots(hands: Record<string, Hand>, mainPot: number):
         eligiblePlayerIds: eligiblePlayers
       });
     }
-    
+
     previousAmount = amount;
   }
-  
+
   // Add remaining main pot
   const remainingPlayers = Object.values(hands)
     .filter(hand => !hand.folded)
     .map(hand => hand.playerId);
-  
+
   if (mainPot > 0 && remainingPlayers.length > 0) {
     pots.push({
       amount: mainPot,
       eligiblePlayerIds: remainingPlayers
     });
   }
-  
+
   return pots;
 }
 

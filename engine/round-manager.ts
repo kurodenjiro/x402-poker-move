@@ -9,8 +9,8 @@ import { db, clearActivePosition } from './game-setup';
 import { performBettingRound, createBettingRound } from './betting-round';
 import { performShowdown } from './showdown';
 import { synthesizeRoundObservations, AIProvider } from './ai-player';
-import { 
-  getPlayerPosition, 
+import {
+  getPlayerPosition,
   getPlayerIdAtPosition,
   getNextNonEmptySeat,
   countActivePlayers,
@@ -40,7 +40,7 @@ export async function performRound({
   provider?: AIProvider;
 }) {
   logger.log(`Starting round ${roundNumber}`, { gameId, buttonPosition });
-  
+
   // Initialize round
   const { roundId, hands, context } = await initializeRound(
     gameId,
@@ -48,10 +48,10 @@ export async function performRound({
     deck,
     roundNumber
   );
-  
+
   // Deal hole cards first
   await dealHoleCards(gameId, roundId, players, hands, deck);
-  
+
   // Now post blinds after cards are dealt
   const initialPot = await postBlindsAfterDeal(
     gameId,
@@ -61,13 +61,13 @@ export async function performRound({
     buttonPosition,
     context
   );
-  
+
   // Initialize pots array
   const pots: Pot[] = [{
     amount: 0,
     eligiblePlayerIds: []
   }];
-  
+
   // Play all betting rounds
   const finalPots = await playAllBettingRounds(
     gameId,
@@ -82,10 +82,10 @@ export async function performRound({
     apiKey,
     provider
   );
-  
+
   // Clear active position
   await clearActivePosition(gameId);
-  
+
   // Synthesize observations for each player
   await synthesizePlayerObservations(
     gameId,
@@ -97,7 +97,7 @@ export async function performRound({
     apiKey,
     provider
   );
-  
+
   return { roundId, hands, context };
 }
 
@@ -115,19 +115,19 @@ async function initializeRound(
   context: string[];
 }> {
   const roundId = id();
-  
+
   // Create round record
   await db.transact(
-    db.tx.gameRounds[roundId].update({
+    db.tx.gameRounds[roundId].merge({
       roundNumber,
       communityCards: { cards: [] },
       pot: 0,
       createdAt: DateTime.now().toISO(),
     }).link({ game: gameId })
   );
-  
+
   logger.log("Round created", { roundId, roundNumber });
-  
+
   return {
     roundId,
     hands: {},
@@ -146,20 +146,20 @@ async function postBlinds(
   buttonPosition: number,
   context: string[]
 ): Promise<{ pot: number }> {
-  
+
   // Calculate positions
   const smallBlindPosition = getPlayerPosition(buttonPosition, 1, GAME_CONFIG.PLAYER_COUNT);
   const bigBlindPosition = getPlayerPosition(buttonPosition, 2, GAME_CONFIG.PLAYER_COUNT);
-  
+
   const smallBlindPlayerId = getPlayerIdAtPosition(players, smallBlindPosition);
   const bigBlindPlayerId = getPlayerIdAtPosition(players, bigBlindPosition);
-  
+
   // Create initial betting round for blinds
   const bettingRoundId = await createBettingRound(gameId, roundId, 'preflop', 0);
-  
+
   // Note: We'll need to deal cards first before posting blinds
   // This is handled in the main performRound function
-  
+
   return { pot: GAME_CONFIG.SMALL_BLIND + GAME_CONFIG.BIG_BLIND };
 }
 
@@ -174,41 +174,41 @@ async function postBlindsAfterDeal(
   buttonPosition: number,
   context: string[]
 ): Promise<number> {
-  
+
   // Find the next non-empty seats for blinds
   // Small blind is the first non-empty seat after the button
   const smallBlindPosition = getNextNonEmptySeat(
-    players, 
-    (buttonPosition + 1) % GAME_CONFIG.PLAYER_COUNT, 
+    players,
+    (buttonPosition + 1) % GAME_CONFIG.PLAYER_COUNT,
     GAME_CONFIG.PLAYER_COUNT
   );
-  
+
   // Big blind is the first non-empty seat after the small blind
   const bigBlindPosition = getNextNonEmptySeat(
     players,
     (smallBlindPosition + 1) % GAME_CONFIG.PLAYER_COUNT,
     GAME_CONFIG.PLAYER_COUNT
   );
-  
+
   const smallBlindPlayerId = getPlayerIdAtPosition(players, smallBlindPosition);
   const bigBlindPlayerId = getPlayerIdAtPosition(players, bigBlindPosition);
-  
+
   // Create initial betting round for blinds
   const bettingRoundId = await createBettingRound(gameId, roundId, 'preflop', 0);
-  
+
   // Find the hands for blind players (guaranteed to be non-empty seats)
   const smallBlindHand = Object.values(hands).find(h => h.playerId === smallBlindPlayerId);
   const bigBlindHand = Object.values(hands).find(h => h.playerId === bigBlindPlayerId);
-  
+
   if (!smallBlindHand || !bigBlindHand) {
-    logger.error("Could not find hands for blind players", { 
-      smallBlindPlayerId, 
+    logger.error("Could not find hands for blind players", {
+      smallBlindPlayerId,
       bigBlindPlayerId,
-      handsCount: Object.keys(hands).length 
+      handsCount: Object.keys(hands).length
     });
     return 0;
   }
-  
+
   // Post small blind
   await postBlindWithHand(
     gameId,
@@ -222,7 +222,7 @@ async function postBlindsAfterDeal(
     hands,
     context
   );
-  
+
   // Post big blind
   await postBlindWithHand(
     gameId,
@@ -236,7 +236,7 @@ async function postBlindsAfterDeal(
     hands,
     context
   );
-  
+
   return GAME_CONFIG.SMALL_BLIND + GAME_CONFIG.BIG_BLIND;
 }
 
@@ -255,10 +255,10 @@ async function postBlindWithHand(
   hands: Record<string, Hand>,
   context: string[]
 ): Promise<void> {
-  
+
   // Record transaction
   await db.transact(
-    db.tx.transactions[id()].update({
+    db.tx.transactions[id()].merge({
       amount,
       credit: false,
       createdAt: DateTime.now().toISO(),
@@ -268,10 +268,10 @@ async function postBlindWithHand(
       player: playerId
     })
   );
-  
+
   // Record action
   await db.transact(
-    db.tx.actions[id()].update({
+    db.tx.actions[id()].merge({
       type: "bet",
       amount,
       reasoning: `Posted the ${blindType}`,
@@ -284,16 +284,16 @@ async function postBlindWithHand(
       bettingRound: bettingRoundId
     })
   );
-  
+
   // Update player stack
   const newStack = players[playerId].stack - amount;
   await db.transact(
-    db.tx.players[playerId].update({ stack: newStack })
+    db.tx.players[playerId].merge({ stack: newStack })
   );
-  
+
   players[playerId].stack = newStack;
   hands[handId].amount = amount;
-  
+
   context.push(`Player ${playerId} posted the ${blindType}`);
 }
 
@@ -307,20 +307,20 @@ async function dealHoleCards(
   hands: Record<string, Hand>,
   deck: string[]
 ): Promise<void> {
-  
+
   const playerIds = Object.keys(players);
-  
+
   for (const playerId of playerIds) {
     const player = players[playerId];
-    
+
     // Skip empty seats - they don't get dealt cards
     if (player.model === 'empty') {
       logger.log("Skipping card deal for empty seat", { playerId });
-      
+
       // Create a folded hand for the empty seat so they're tracked but inactive
       const handId = id();
       await db.transact(
-        db.tx.hands[handId].update({
+        db.tx.hands[handId].merge({
           cards: { cards: [] },
           folded: true,
           createdAt: DateTime.now().toISO(),
@@ -330,7 +330,7 @@ async function dealHoleCards(
           player: playerId
         })
       );
-      
+
       // Create folded hand object
       hands[handId] = {
         id: handId,
@@ -342,17 +342,17 @@ async function dealHoleCards(
         stack: 0,
         allIn: false
       };
-      
+
       continue;
     }
-    
+
     const handId = id();
     const card1 = deck.pop()!;
     const card2 = deck.pop()!;
-    
+
     // Create hand record
     await db.transact(
-      db.tx.hands[handId].update({
+      db.tx.hands[handId].merge({
         cards: { cards: [card1, card2] },
         folded: false,
         createdAt: DateTime.now().toISO(),
@@ -362,10 +362,10 @@ async function dealHoleCards(
         player: playerId
       })
     );
-    
+
     // Update player cards
     players[playerId].cards = [card1, card2];
-    
+
     // Create hand object
     hands[handId] = {
       id: handId,
@@ -378,7 +378,7 @@ async function dealHoleCards(
       allIn: false
     };
   }
-  
+
   logger.log("Hole cards dealt", { playerCount: playerIds.length });
 }
 
@@ -398,33 +398,33 @@ async function playAllBettingRounds(
   apiKey?: string,
   provider: AIProvider = 'openrouter'
 ): Promise<Pot[]> {
-  
+
   // Find small blind and big blind positions (same logic as posting blinds)
   const smallBlindPosition = getNextNonEmptySeat(
-    players, 
-    (buttonPosition + 1) % GAME_CONFIG.PLAYER_COUNT, 
+    players,
+    (buttonPosition + 1) % GAME_CONFIG.PLAYER_COUNT,
     GAME_CONFIG.PLAYER_COUNT
   );
-  
+
   const bigBlindPosition = getNextNonEmptySeat(
     players,
     (smallBlindPosition + 1) % GAME_CONFIG.PLAYER_COUNT,
     GAME_CONFIG.PLAYER_COUNT
   );
-  
+
   // Preflop starts with first non-empty seat after big blind (UTG)
   const preFlopStart = getNextNonEmptySeat(
     players,
     (bigBlindPosition + 1) % GAME_CONFIG.PLAYER_COUNT,
     GAME_CONFIG.PLAYER_COUNT
   );
-  
+
   // Post-flop starts with small blind (first non-empty seat after button)
   const postFlopStart = smallBlindPosition;
-  
+
   // Track cumulative pot across all betting rounds
   let cumulativePot = 0;
-  
+
   // Preflop betting
   const preflopResult = await playBettingRound(
     gameId,
@@ -442,19 +442,19 @@ async function playAllBettingRounds(
     cumulativePot,
     provider
   );
-  
+
   cumulativePot += preflopResult.pot;
-  
+
   if (!preflopResult || countActivePlayers(hands) <= 1) {
     await handlePotDistribution(gameId, roundId, players, hands, [], pots);
     return pots;
   }
-  
+
   // Flop
   const flopCards = [deck.pop()!, deck.pop()!, deck.pop()!];
   await updateCommunityCards(gameId, roundId, flopCards);
   context.push(`The flop cards are ${flopCards.join(", ")}`);
-  
+
   const flopResult = await playBettingRound(
     gameId,
     roundId,
@@ -471,20 +471,20 @@ async function playAllBettingRounds(
     cumulativePot,
     provider
   );
-  
+
   cumulativePot += flopResult.pot;
-  
+
   if (!flopResult || countActivePlayers(hands) <= 1) {
     await handlePotDistribution(gameId, roundId, players, hands, flopCards, flopResult?.pots || pots);
     return flopResult?.pots || pots;
   }
-  
+
   // Turn
   const turnCard = deck.pop()!;
   const turnCards = [...flopCards, turnCard];
   await updateCommunityCards(gameId, roundId, turnCards);
   context.push(`The turn card is ${turnCard}`);
-  
+
   const turnResult = await playBettingRound(
     gameId,
     roundId,
@@ -501,20 +501,20 @@ async function playAllBettingRounds(
     cumulativePot,
     provider
   );
-  
+
   cumulativePot += turnResult.pot;
-  
+
   if (!turnResult || countActivePlayers(hands) <= 1) {
     await handlePotDistribution(gameId, roundId, players, hands, turnCards, turnResult?.pots || pots);
     return turnResult?.pots || pots;
   }
-  
+
   // River
   const riverCard = deck.pop()!;
   const riverCards = [...turnCards, riverCard];
   await updateCommunityCards(gameId, roundId, riverCards);
   context.push(`The river card is ${riverCard}`);
-  
+
   const riverResult = await playBettingRound(
     gameId,
     roundId,
@@ -531,12 +531,12 @@ async function playAllBettingRounds(
     cumulativePot,
     provider
   );
-  
+
   cumulativePot += riverResult.pot;
-  
+
   // Final showdown
   await handlePotDistribution(gameId, roundId, players, hands, riverCards, riverResult?.pots || pots);
-  
+
   return riverResult?.pots || pots;
 }
 
@@ -565,7 +565,7 @@ async function playBettingRound(
     roundType as any,
     initialPot
   );
-  
+
   const result = await performBettingRound({
     context,
     highestBet: initialBet,
@@ -581,15 +581,15 @@ async function playBettingRound(
     apiKey,
     provider
   });
-  
+
   // Update round pot with cumulative total
   const totalPot = cumulativePot + result.pot;
   await db.transact(
-    db.tx.gameRounds[roundId].update({
+    db.tx.gameRounds[roundId].merge({
       pot: totalPot
     })
   );
-  
+
   return result;
 }
 
@@ -602,7 +602,7 @@ async function updateCommunityCards(
   cards: string[]
 ): Promise<void> {
   await db.transact(
-    db.tx.gameRounds[roundId].update({
+    db.tx.gameRounds[roundId].merge({
       communityCards: { cards }
     })
   );
@@ -619,7 +619,7 @@ async function handlePotDistribution(
   communityCards: string[],
   pots: Pot[]
 ): Promise<void> {
-  
+
   for (const pot of pots) {
     if (pot.amount > 0 && pot.eligiblePlayerIds.length > 0) {
       const showdownPlayers = Object.values(hands)
@@ -628,7 +628,7 @@ async function handlePotDistribution(
           playerId: hand.playerId,
           cards: hand.cards
         }));
-      
+
       await performShowdown({
         showdownPlayers,
         communityCards,
@@ -655,7 +655,7 @@ async function synthesizePlayerObservations(
   provider: AIProvider = 'openrouter'
 ): Promise<void> {
   logger.log("Synthesizing player observations", { roundId });
-  
+
   // Get all actions from this round
   const roundData = await db.query({
     gameRounds: {
@@ -672,17 +672,17 @@ async function synthesizePlayerObservations(
       }
     }
   });
-  
+
   const round = roundData?.gameRounds?.[0];
   if (!round) return;
-  
+
   // Extract player actions for synthesis
   const playerActions = round.actions?.map((action: any) => ({
     playerId: action.player?.id || '',
     action: action.type,
     reasoning: action.reasoning
   })) || [];
-  
+
   // Calculate winners from transactions
   const winners = round.transactions
     ?.filter((t: any) => t.credit)
@@ -690,9 +690,9 @@ async function synthesizePlayerObservations(
       playerId: t.player?.id || '',
       amount: t.amount
     })) || [];
-  
+
   const finalPot = round.pot || 0;
-  
+
   // Synthesize observations for all players in parallel
   const synthesisPromises = Object.entries(players).map(async ([playerId, player]) => {
     try {
@@ -701,7 +701,7 @@ async function synthesizePlayerObservations(
         logger.log("Skipping observation synthesis for empty seat", { playerId });
         return;
       }
-      
+
       // Get player's current notes
       const playerData = await db.query({
         players: {
@@ -712,12 +712,12 @@ async function synthesizePlayerObservations(
           }
         }
       });
-      
+
       const existingNotes = playerData?.players?.[0]?.notes;
       const playerHand = Object.values(hands).find(h => h.playerId === playerId);
-      
+
       if (!playerHand) return;
-      
+
       // Synthesize new observations
       const updatedNotes = await synthesizeRoundObservations({
         playerId,
@@ -732,22 +732,22 @@ async function synthesizePlayerObservations(
         apiKey,
         provider
       });
-      
+
       // Update player notes in database
       await db.transact(
-        db.tx.players[playerId].update({
+        db.tx.players[playerId].merge({
           notes: updatedNotes
         })
       );
-      
+
       logger.log("Updated notes for player", { playerId, notesLength: updatedNotes.length });
     } catch (error) {
       logger.error(`Failed to synthesize observations for player ${playerId}`, { error });
     }
   });
-  
+
   // Wait for all synthesis operations to complete
   await Promise.all(synthesisPromises);
-  
+
   logger.log("Completed synthesizing observations for all players");
 } 

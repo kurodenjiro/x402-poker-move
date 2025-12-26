@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       // and add placeholder player
       console.log(`♻️  Updating existing game from payment: ${gameId}`);
       await db.transact([
-        db.tx.games[gameId].update({
+        db.tx.games[gameId].merge({
           totalRounds: numberOfHands,
           buttonPosition: 0,
           currentActivePosition: null,
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
       // New game (no payment) - create from scratch
       console.log(`🆕 Creating new game: ${gameId}`);
       await db.transact([
-        db.tx.games[gameId].update({
+        db.tx.games[gameId].merge({
           totalRounds: numberOfHands,
           createdAt: DateTime.now().toISO(),
           buttonPosition: 0,

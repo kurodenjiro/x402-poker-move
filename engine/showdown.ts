@@ -129,7 +129,7 @@ async function distributePot(
 
     // Record winning transaction
     await db.transact(
-      db.tx.transactions[id()].update({
+      db.tx.transactions[id()].merge({
         amount: winAmount,
         credit: true,
         createdAt: DateTime.now().toISO(),
@@ -143,7 +143,7 @@ async function distributePot(
     // Update player stack
     const newStack = player.stack + winAmount;
     await db.transact(
-      db.tx.players[winner.playerId].update({
+      db.tx.players[winner.playerId].merge({
         stack: newStack
       })
     );
@@ -243,7 +243,7 @@ export async function awardPotToLastPlayer(
 
   // Record winning transaction
   await db.transact(
-    db.tx.transactions[id()].update({
+    db.tx.transactions[id()].merge({
       amount: potAmount,
       credit: true,
       createdAt: DateTime.now().toISO(),
@@ -257,7 +257,7 @@ export async function awardPotToLastPlayer(
   // Update player stack
   const newStack = player.stack + potAmount;
   await db.transact(
-    db.tx.players[winnerId].update({
+    db.tx.players[winnerId].merge({
       stack: newStack
     })
   );

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { aptos, padAddressToAptos } from "@/lib/movement";
-import { Account, Ed25519PrivateKey } from "@aptos-labs/ts-sdk";
 
 export async function POST(request: NextRequest) {
     try {
@@ -17,31 +16,15 @@ export async function POST(request: NextRequest) {
             amount: (amountInOctas / 100_000_000).toFixed(4) + " MOVE",
         });
 
-        // Check if we have a server private key
-        const serverPrivateKey = process.env.MOVEMENT_PRIVATE_KEY;
-
-        if (!serverPrivateKey) {
-            throw new Error(
-                "Server wallet not configured. Please set MOVEMENT_PRIVATE_KEY environment variable to enable real blockchain transactions."
-            );
-        }
-
-        // Create server account from private key (this will be the actual payer)
-        const privateKey = new Ed25519PrivateKey(serverPrivateKey);
-        const serverAccount = Account.fromPrivateKey({ privateKey });
-        const serverAddress = serverAccount.accountAddress.toString();
-
-        console.log("💰 Server wallet will pay:", serverAddress);
-
         // Pad addresses to 64 characters (Aptos format)
-        const paddedServerAddress = padAddressToAptos(serverAddress);
+        const paddedSenderAddress = padAddressToAptos(senderAddress);
         const paddedRecipientAddress = padAddressToAptos(recipientAddress);
 
-        // Check server's balance
+        // Check user's balance
         let balance = 0;
         try {
             balance = await aptos.getAccountAPTAmount({
-                accountAddress: paddedServerAddress,
+                accountAddress: paddedSenderAddress,
             });
         } catch (error) {
             console.error("Failed to fetch balance:", error);
@@ -62,7 +45,7 @@ export async function POST(request: NextRequest) {
             }
 
             return NextResponse.json(
-                { error: "Failed to fetch server wallet balance" },
+                { error: "Failed to fetch user wallet balance" },
                 { status: 400 }
             );
         }
@@ -70,7 +53,7 @@ export async function POST(request: NextRequest) {
         if (balance < amountInOctas) {
             return NextResponse.json(
                 {
-                    error: `Server wallet has insufficient balance. Server has ${(balance / 100_000_000).toFixed(4)} MOVE but needs ${(amountInOctas / 100_000_000).toFixed(4)} MOVE`,
+                    error: `Insufficient balance.You have ${ (balance / 100_000_000).toFixed(4) } MOVE but need ${ (amountInOctas / 100_000_000).toFixed(4) } MOVE`,
                     balance: balance / 100_000_000,
                     required: amountInOctas / 100_000_000,
                 },
@@ -78,26 +61,26 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Build the transaction payload with SERVER as sender
+        // Build the transaction payload with USER as sender
         const transaction = await aptos.transaction.build.simple({
-            sender: paddedServerAddress,
+            sender: paddedSenderAddress,  // User pays!
             data: {
                 function: "0x1::aptos_account::transfer",
                 functionArguments: [paddedRecipientAddress, amountInOctas],
             },
         });
 
-        console.log("📝 Transaction payload created");
+        console.log("📝 Transaction ready for user to sign");
 
-        // Serialize transaction to base64 to avoid BigInt serialization issues
+        // Serialize transaction to base64
         const transactionBytes = transaction.bcsToBytes();
         const transactionBase64 = Buffer.from(transactionBytes).toString('base64');
 
-        // Return the unsigned transaction for the server to sign
+        // Return the unsigned transaction for Privy to sign
         return NextResponse.json({
             success: true,
             transaction: transactionBase64,
-            message: "Transaction ready for signing",
+            message: "Transaction ready for user signature",
             amount: amountInOctas / 100_000_000,
         });
 

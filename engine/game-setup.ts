@@ -7,11 +7,17 @@ import { Player } from './types';
 import { GAME_CONFIG, AI_MODELS, createDeck, OPENROUTER_MODELS } from './constants';
 import { shuffle } from './utils';
 
+import { generateAgentWallet, distributeToAgents, accountFromPrivateKey } from '@/lib/agent-wallets';
+import { chipsToOctas } from '@/lib/agent-payments';
+
 // Initialize database
 export const db = init({
   appId: process.env.NEXT_PUBLIC_INSTANT_APP_ID || "",
   adminToken: process.env.INSTANT_APP_ADMIN_TOKEN || "",
 });
+
+// Helper for funding agents from server wallet
+const SERVER_PRIVATE_KEY = process.env.MOVEMENT_SERVER_PRIVATE_KEY || process.env.MOVEMENT_PRIVATE_KEY;
 
 /**
  * Initialize a new game with configurable settings
@@ -34,7 +40,7 @@ export async function initializeGame(
 
   // Create game record
   await db.transact(
-    db.tx.games[gameId].update({
+    db.tx.games[gameId].merge({
       totalRounds: handsPerGame,
       createdAt: DateTime.now().toISO(),
       buttonPosition: 0,
@@ -127,7 +133,7 @@ export async function updateGameState(
   const activePosition = (buttonPosition + 4) % GAME_CONFIG.PLAYER_COUNT;
 
   await db.transact(
-    db.tx.games[gameId].update({
+    db.tx.games[gameId].merge({
       buttonPosition,
       currentActivePosition: activePosition,
       deck: { cards: deck },
@@ -141,7 +147,7 @@ export async function updateGameState(
  */
 export async function clearActivePosition(gameId: string): Promise<void> {
   await db.transact(
-    db.tx.games[gameId].update({
+    db.tx.games[gameId].merge({
       currentActivePosition: null,
     })
   );
@@ -178,7 +184,7 @@ export async function initializeCustomGame(
 
   // Create game record
   await db.transact(
-    db.tx.games[gameId].update({
+    db.tx.games[gameId].merge({
       totalRounds: handsPerGame,
       createdAt: DateTime.now().toISO(),
       buttonPosition: 0,
@@ -273,6 +279,74 @@ export async function initializeCustomGame(
     };
 
     logger.log("AI player created", { playerId, model, seatNumber });
+  }
+
+  // --- NEW: Generate Agent Wallets (Required for Sponsored Transactions) ---
+  try {
+    const aiPlayerConfigs = playerConfigs.filter(p => !p.emptySeat);
+
+    if (aiPlayerConfigs.length > 0) {
+      logger.log(`🤖 Generating wallets for ${aiPlayerConfigs.length} AI agents...`);
+
+      // Find the players we just created to link wallets to them
+      const gameQuery = await db.query({
+        games: {
+          $: { where: { id: gameId } },
+          players: {}
+        }
+      });
+
+      const dbPlayers = gameQuery.games[0]?.players || [];
+      const agentAddresses: string[] = [];
+
+      for (const player of dbPlayers) {
+        // Skip empty seats
+        if (player.emptySeat) continue;
+
+        const wallet = generateAgentWallet();
+        const walletId = id();
+
+        await db.transact(
+          db.tx.agentWallets[walletId].update({
+            address: wallet.address,
+            privateKey: wallet.privateKey, // Stored for the session
+            seatNumber: player.seatNumber,
+            agentName: player.name,
+            balance: 0,
+            initialBalance: 0,
+            createdAt: Date.now(),
+          })
+            .link({ game: gameId })
+        );
+
+        agentAddresses.push(wallet.address);
+        logger.log("  ✅ Wallet created", { seat: player.seatNumber, address: wallet.address });
+      }
+
+      // Fund agents if server key is available
+      // We need to fund them with the ACTUAL VALUE of their chips in MOVE
+      if (SERVER_PRIVATE_KEY && agentAddresses.length > 0) {
+        try {
+          const amountPerAgent = chipsToOctas(initialStack);
+          logger.log(`💰 Funding agents from server wallet (${initialStack} chips = ${amountPerAgent / 100_000_000} MOVE)...`);
+          const serverAccount = accountFromPrivateKey(SERVER_PRIVATE_KEY);
+
+          // Fund agents (non-blocking)
+          try {
+            await distributeToAgents(serverAccount, agentAddresses, amountPerAgent);
+          } catch (error) {
+            console.error("⚠️ Failed to fund agents. Payments may fail, but game will proceed.", error);
+          }
+          logger.log("✅ Agents successfully funded");
+        } catch (fundError) {
+          logger.error("❌ Failed to fund agents:", fundError as any);
+        }
+      } else {
+        logger.warn("⚠️ MOVEMENT_SERVER_PRIVATE_KEY missing - Agents created but NOT FUNDED");
+      }
+    }
+  } catch (walletError) {
+    logger.error("❌ Error setting up agent wallets:", walletError as any);
   }
 
   return { gameId, players };

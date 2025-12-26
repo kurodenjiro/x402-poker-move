@@ -1,16 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
+import { useSignRawHash } from "@privy-io/react-auth/extended-chains";
 import { CircleNotch, CurrencyCircleDollar, X, CheckCircle } from "@phosphor-icons/react";
 import { calculatePaymentAmount, formatMoveAmount, MOVEMENT_NETWORK, PAYMENT_CONFIG } from "@/lib/movement";
+import { useAptosWallet } from "@/hooks/useAptosWallet";
 
 interface PaymentModalProps {
     isOpen: boolean;
     onClose: () => void;
     startingStack: number;
     participants: number;
-    seatSelections: any[]; // Array of seat configurations
+    seatSelections: any[];
     onPaymentSuccess: (txHash: string, gameId?: string) => void;
 }
 
@@ -23,7 +25,8 @@ export default function PaymentModal({
     onPaymentSuccess,
 }: PaymentModalProps) {
     const { authenticated, login } = usePrivy();
-    const { wallets } = useWallets();
+    const { aptosAddress, publicKey, isCreating } = useAptosWallet();
+    const { signRawHash } = useSignRawHash();
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
@@ -32,15 +35,14 @@ export default function PaymentModal({
 
     if (!isOpen) return null;
 
-
     const handlePayment = async () => {
         if (!authenticated) {
             login();
             return;
         }
 
-        if (wallets.length === 0) {
-            setError("No wallet connected");
+        if (isCreating || !aptosAddress || !publicKey) {
+            setError("Waiting for Aptos wallet creation...");
             return;
         }
 
@@ -48,205 +50,169 @@ export default function PaymentModal({
         setError(null);
 
         try {
-            const wallet = wallets[0];
-            const walletAddress = wallet.address;
-
-            if (!walletAddress) {
-                throw new Error("Wallet address not found");
-            }
-
-            // Get recipient address from environment
             const recipientAddress = PAYMENT_CONFIG.RECIPIENT_ADDRESS;
-
-            // Convert MOVE amount to octas (1 MOVE = 100,000,000 octas)
             const amountInOctas = Math.floor(paymentAmount * 100_000_000);
 
-            console.log("Creating Movement payment transaction:", {
-                from: walletAddress,
+            console.log("💳 Starting user-signed payment:", {
+                from: aptosAddress,
                 to: recipientAddress,
                 amount: paymentAmount,
-                amountInOctas,
             });
 
-            // Step 1: Create unsigned transaction
-            const createResponse = await fetch("/api/create-payment-tx", {
+            // Step 1: Generate hash from backend
+            console.log("🔨 Requesting transaction hash...");
+            const hashResponse = await fetch("/api/generate-payment-hash", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    senderAddress: walletAddress,
+                    sender: aptosAddress,
                     recipientAddress,
                     amountInOctas,
                 }),
             });
 
-            const createData = await createResponse.json();
-
-            if (!createResponse.ok) {
-                throw new Error(createData.error || "Failed to create payment transaction");
+            if (!hashResponse.ok) {
+                throw new Error("Failed to generate transaction hash");
             }
 
+            const { hash, rawTxnHex } = await hashResponse.json();
+            console.log("✅ Hash generated");
 
-            const { transaction } = createData;
+            // Step 2: Sign hash using Privy's signRawHash
+            console.log("✍️ Signing with Privy...");
+            const { signature } = await signRawHash({
+                address: aptosAddress,
+                chainType: "aptos",
+                hash,
+            });
+            console.log("✅ Transaction signed");
 
-            console.log("📝 Transaction created, submitting for signing...");
-
-            // Submit transaction to server for signing and blockchain submission
-            const submitResponse = await fetch("/api/submit-payment-tx", {
+            // Step 3: Submit signed transaction to backend
+            console.log("🚀 Submitting signed transaction...");
+            const submitResponse = await fetch("/api/submit-signed-payment", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    transaction,
-                    senderAddress: walletAddress,
-                    recipientAddress,
-                    amountInOctas,
-                    seatSelections, // Pass seat selections for agent wallet generation
+                    rawTxnHex,
+                    publicKey,
+                    signature,
+                    seatSelections,
+                    startingStack,
+                    walletAddress: aptosAddress,
                 }),
             });
-
-            const submitData = await submitResponse.json();
 
             if (!submitResponse.ok) {
-                throw new Error(submitData.error || "Failed to submit payment transaction");
+                throw new Error("Failed to submit transaction");
             }
 
-            const { txHash, explorerUrl, gameId } = submitData;
+            const result = await submitResponse.json();
 
-            console.log("✅ Payment transaction confirmed:", txHash);
+            if (!result.success) {
+                throw new Error(result.error || "Transaction failed");
+            }
+
+            const { txHash, gameId, explorerUrl } = result;
+
+            console.log("✅ Payment confirmed:", txHash);
             if (explorerUrl) {
-                console.log("🔗 View on explorer:", explorerUrl);
+                console.log("🔗 Explorer:", explorerUrl);
             }
             console.log("🎮 Game ID:", gameId);
 
             setSuccess(true);
             setTimeout(() => {
-                onPaymentSuccess(txHash, gameId); // Pass both txHash and gameId
+                onPaymentSuccess(txHash, gameId);
             }, 1500);
 
         } catch (err) {
             console.error("❌ Payment error:", err);
             setError(err instanceof Error ? err.message : "Payment failed");
+        } finally {
             setIsProcessing(false);
         }
     };
 
     return (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div className="bg-dark-2 border border-dark-6 max-w-md w-full">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="bg-dark-3 border border-dark-4 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-dark-6">
-                    <h2 className="text-sm font-semibold text-text-bright uppercase flex items-center gap-2">
-                        <CurrencyCircleDollar size={20} className="text-green-500" weight="fill" />
-                        Payment Required
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <CurrencyCircleDollar size={32} className="text-green-500" weight="duotone" />
+                        PAYMENT REQUIRED
                     </h2>
                     <button
                         onClick={onClose}
+                        className="text-gray-400 hover:text-white transition-colors"
                         disabled={isProcessing}
-                        className="text-text-dim hover:text-text-bright transition-colors disabled:opacity-50"
                     >
-                        <X size={20} />
+                        <X size={24} />
                     </button>
                 </div>
 
-                {/* Content */}
-                <div className="p-6 space-y-6">
-                    {/* Payment Details */}
-                    <div className="space-y-4">
-                        <div className="bg-dark-3 border border-dark-6 p-4 space-y-3">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-text-dim">Starting Stack:</span>
-                                <span className="text-text-medium font-medium">{startingStack}</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-text-dim">Participants:</span>
-                                <span className="text-text-medium font-medium">{participants}</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-text-dim">Stack per Player:</span>
-                                <span className="text-text-medium font-medium">
-                                    {(startingStack / participants).toFixed(0)}
-                                </span>
-                            </div>
-                            <div className="border-t border-dark-6 pt-3 mt-3">
-                                <div className="flex justify-between">
-                                    <span className="text-text-bright font-semibold">Entry Fee:</span>
-                                    <span className="text-green-400 font-bold text-lg">
-                                        {formatMoveAmount(paymentAmount)}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
+                {/* Payment Details */}
+                <div className="bg-dark-2 rounded-xl p-6 mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <span className="text-gray-400">Entry Fee</span>
+                        <span className="text-2xl font-bold text-white">
+                            {formatMoveAmount(paymentAmount)}
+                        </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500">Network</span>
+                        <span className="text-gray-300">{MOVEMENT_NETWORK.name}</span>
+                    </div>
+                </div>
 
-                        <div className="bg-dark-3/50 border border-dark-6 p-3">
-                            <p className="text-xs text-text-dim">
-                                <strong className="text-text-medium">Exchange Rate:</strong> 1 MOVE = 10,000 Stack
-                            </p>
-                            <p className="text-xs text-text-dim mt-2">
-                                <strong className="text-text-medium">Network:</strong> {MOVEMENT_NETWORK.name}
-                            </p>
-                            <p className="text-xs text-text-dim mt-2">
-                                <strong className="text-text-medium">Recipient:</strong>{" "}
-                                <span className="font-mono">{PAYMENT_CONFIG.RECIPIENT_ADDRESS.slice(0, 8)}...{PAYMENT_CONFIG.RECIPIENT_ADDRESS.slice(-6)}</span>
-                            </p>
+                {/* Success State */}
+                {success && (
+                    <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 mb-6 flex items-center gap-3">
+                        <CheckCircle size={24} className="text-green-500" weight="fill" />
+                        <div>
+                            <p className="text-green-500 font-semibold">Payment Successful!</p>
+                            <p className="text-green-400 text-sm">Your wallet was debited. Starting game...</p>
                         </div>
                     </div>
+                )}
 
-                    {/* Error Message */}
-                    {error && (
-                        <div className="bg-red-950/20 border border-red-900/50 p-3">
-                            <p className="text-sm text-red-400">{error}</p>
-                        </div>
-                    )}
+                {/* Error State */}
+                {error && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
+                        <p className="text-red-500 font-semibold">{error}</p>
+                    </div>
+                )}
 
-                    {/* Success Message */}
-                    {success && (
-                        <div className="bg-green-950/20 border border-green-900/50 p-4 flex items-center gap-3">
-                            <CheckCircle size={24} className="text-green-500" weight="fill" />
-                            <div>
-                                <p className="text-sm text-green-400 font-medium">Payment Confirmed!</p>
-                                <p className="text-xs text-text-dim mt-1">Starting game...</p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Payment Button */}
+                {/* Pay Button */}
+                {!success && (
                     <button
                         onClick={handlePayment}
-                        disabled={isProcessing || success}
-                        className={`w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold uppercase transition-colors ${success
-                            ? "bg-green-950/50 border border-green-900/50 text-green-400 cursor-not-allowed"
-                            : isProcessing
-                                ? "bg-dark-3 border border-dark-6 text-text-dim cursor-wait"
-                                : "bg-green-950/50 border border-green-900/50 text-green-400 hover:bg-green-950/70"
-                            }`}
+                        disabled={isProcessing || isCreating}
+                        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3"
                     >
                         {isProcessing ? (
                             <>
-                                <CircleNotch size={16} className="animate-spin" />
-                                Processing Payment...
+                                <CircleNotch size={24} className="animate-spin" />
+                                <span>PROCESSING PAYMENT...</span>
                             </>
-                        ) : success ? (
+                        ) : isCreating ? (
                             <>
-                                <CheckCircle size={16} weight="fill" />
-                                Payment Confirmed
+                                <CircleNotch size={24} className="animate-spin" />
+                                <span>CREATING WALLET...</span>
                             </>
                         ) : (
                             <>
-                                <CurrencyCircleDollar size={16} weight="fill" />
-                                Pay {formatMoveAmount(paymentAmount)}
+                                <CurrencyCircleDollar size={24} weight="fill" />
+                                <span>PAY {formatMoveAmount(paymentAmount)}</span>
                             </>
                         )}
                     </button>
+                )}
 
-                    {!authenticated && (
-                        <p className="text-xs text-text-dim text-center">
-                            You need to connect your wallet first
-                        </p>
-                    )}
-                </div>
+                {/* Note */}
+                <p className="text-gray-500 text-xs text-center mt-4">
+                    Your wallet will be debited {formatMoveAmount(paymentAmount)}
+                </p>
             </div>
         </div>
     );

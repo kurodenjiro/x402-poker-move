@@ -3,12 +3,12 @@
 import { logger } from './logger';
 import { id } from '@instantdb/admin';
 import { DateTime } from "luxon";
-import { 
-  Hand, 
-  Player, 
-  Pot, 
-  BettingRoundResult, 
-  BettingRoundType 
+import {
+  Hand,
+  Player,
+  Pot,
+  BettingRoundResult,
+  BettingRoundType
 } from './types';
 import { db } from './game-setup';
 import { generateAction, AIProvider } from './ai-player';
@@ -55,33 +55,33 @@ export async function performBettingRound({
   apiKey?: string;
   provider?: AIProvider;
 }): Promise<BettingRoundResult> {
-  
+
   logger.log("Starting betting round", { bettingRoundId, highestBet, pot });
-  
+
   let currentPlayer = startingPlayer;
   const handKeys = Object.keys(hands);
-  
+
   // Continue until betting round is complete
   while (!isBettingRoundComplete(hands, highestBet)) {
     const currentHand = hands[handKeys[currentPlayer]];
     const player = players[currentHand.playerId];
-    
+
     // Skip folded, all-in, or empty seat players
     if (currentHand.folded || currentHand.allIn || player.model === 'empty') {
       currentPlayer = (currentPlayer + 1) % handKeys.length;
       continue;
     }
-    
+
     // Update current active position in the game
     await db.transact(
-      db.tx.games[gameId].update({
+      db.tx.games[gameId].merge({
         currentActivePosition: currentPlayer,
       })
     );
-    
+
     // pause for 1 second
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
+
     // Get AI decision
     const action = await getPlayerAction(
       currentHand,
@@ -95,7 +95,7 @@ export async function performBettingRound({
       apiKey,
       provider
     );
-    
+
     // Process the action
     const actionResult = await processAction({
       action,
@@ -109,26 +109,26 @@ export async function performBettingRound({
       players,
       context
     });
-    
+
     // Update state from action result
     highestBet = actionResult.highestBet;
     pot = actionResult.pot;
-    
+
     // Check for early round end (only one active player)
     if (countActivePlayers(hands) <= 1) {
       break;
     }
-    
+
     // Move to next player
     currentPlayer = (currentPlayer + 1) % handKeys.length;
   }
-  
+
   // Calculate final pots including side pots
   const finalPots = finalizePots(hands, pot, pots);
-  
+
   // Reset for next betting round
   resetPlayerActions(hands);
-  
+
   return {
     context,
     hands,
@@ -160,10 +160,10 @@ async function getPlayerAction(
       args: { reasoning: 'Empty seat' }
     };
   }
-  
+
   // Calculate position relative to button
   const positionFromButton = (currentPlayer - buttonPosition + totalPlayers) % totalPlayers;
-  
+
   // Determine position name
   let position: string;
   if (positionFromButton === 0) {
@@ -181,9 +181,9 @@ async function getPlayerAction(
   } else {
     position = `Middle Position (MP${positionFromButton - 2})`;
   }
-  
+
   const betToCall = highestBet - hand.amount;
-  
+
   // Log big blind scenario for debugging
   if (position === "Big Blind" && betToCall === 0) {
     logger.log("Big blind can check", {
@@ -193,7 +193,7 @@ async function getPlayerAction(
       betToCall
     });
   }
-  
+
   // Get player's notes
   const playerData = await db.query({
     players: {
@@ -204,9 +204,9 @@ async function getPlayerAction(
       }
     }
   });
-  
+
   const notes = playerData?.players?.[0]?.notes;
-  
+
   const toolCalls = await generateAction({
     playerId: hand.playerId,
     cards: hand.cards,
@@ -220,7 +220,7 @@ async function getPlayerAction(
     apiKey,
     provider
   });
-  
+
   return toolCalls[0]; // Return first action
 }
 
@@ -250,15 +250,15 @@ async function processAction({
   players: Record<string, Player>;
   context: string[];
 }): Promise<{ highestBet: number; pot: number }> {
-  
+
   const actionId = id();
   const player = players[hand.playerId];
-  
+
   switch (action.toolName) {
     case "bet": {
       const betAmount = action.args.amount;
       const actualBet = Math.min(betAmount, player.stack);
-      
+
       // Log betting details
       logger.log("Player betting", {
         playerId: hand.playerId,
@@ -269,10 +269,10 @@ async function processAction({
         playerStack: player.stack,
         totalAfterBet: hand.amount + actualBet
       });
-      
+
       // Record the action
       await db.transact(
-        db.tx.actions[actionId].update({
+        db.tx.actions[actionId].merge({
           type: "bet",
           amount: actualBet,
           reasoning: action.args.reasoning,
@@ -285,25 +285,25 @@ async function processAction({
           hand: hand.id
         })
       );
-      
+
       // Update player stack
       const newStack = player.stack - actualBet;
       await updatePlayerStack(hand.playerId, newStack);
       player.stack = newStack;
-      
+
       // Record transaction
       await recordTransaction(gameId, roundId, hand.playerId, actualBet, false);
-      
+
       // Update hand state
       hand.amount += actualBet;
       hand.acted = true;
       pot += actualBet;
-      
+
       // Check if this is a raise
       if (hand.amount > highestBet) {
         highestBet = hand.amount;
         markOthersAsNotActed(hands, hand.playerId);
-        
+
         // Determine if this is a call or raise for logging
         const previousHighest = highestBet - (hand.amount - actualBet);
         if (hand.amount > previousHighest) {
@@ -312,19 +312,19 @@ async function processAction({
       } else if (hand.amount === highestBet) {
         context.push(`${hand.playerId} called ${actualBet}`);
       }
-      
+
       // Check if player is all-in
       if (newStack === 0) {
         hand.allIn = true;
         context.push(`${hand.playerId} went all-in with ${actualBet}`);
       }
-      
+
       break;
     }
-    
+
     case "check": {
       await db.transact(
-        db.tx.actions[actionId].update({
+        db.tx.actions[actionId].merge({
           type: "check",
           amount: 0,
           reasoning: action.args.reasoning,
@@ -337,15 +337,15 @@ async function processAction({
           hand: hand.id
         })
       );
-      
+
       hand.acted = true;
       context.push(`${hand.playerId} checked`);
       break;
     }
-    
+
     case "fold": {
       await db.transact(
-        db.tx.actions[actionId].update({
+        db.tx.actions[actionId].merge({
           type: "fold",
           amount: 0,
           reasoning: action.args.reasoning,
@@ -358,14 +358,14 @@ async function processAction({
           hand: hand.id
         })
       );
-      
+
       hand.folded = true;
       hand.acted = true;
       context.push(`${hand.playerId} folded`);
       break;
     }
   }
-  
+
   return { highestBet, pot };
 }
 
@@ -374,7 +374,7 @@ async function processAction({
  */
 async function updatePlayerStack(playerId: string, newStack: number): Promise<void> {
   await db.transact(
-    db.tx.players[playerId].update({ stack: newStack })
+    db.tx.players[playerId].merge({ stack: newStack })
   );
 }
 
@@ -389,7 +389,7 @@ async function recordTransaction(
   credit: boolean
 ): Promise<void> {
   await db.transact(
-    db.tx.transactions[id()].update({
+    db.tx.transactions[id()].merge({
       amount,
       credit,
       createdAt: DateTime.now().toISO(),
@@ -407,15 +407,15 @@ async function recordTransaction(
 function finalizePots(hands: Record<string, Hand>, pot: number, pots: Pot[]): Pot[] {
   // Calculate side pots if there are all-in players
   const hasAllInPlayers = Object.values(hands).some(hand => hand.allIn && !hand.folded);
-  
+
   if (hasAllInPlayers) {
     return calculateSidePots(hands, pot);
   }
-  
+
   // Otherwise, just update the main pot
   pots[0].amount += pot;
   pots[0].eligiblePlayerIds = getEligiblePlayers(hands);
-  
+
   return pots;
 }
 
@@ -429,9 +429,9 @@ export async function createBettingRound(
   initialPot: number
 ): Promise<string> {
   const bettingRoundId = id();
-  
+
   await db.transact(
-    db.tx.bettingRounds[bettingRoundId].update({
+    db.tx.bettingRounds[bettingRoundId].merge({
       type,
       pot: initialPot,
       createdAt: DateTime.now().toISO(),
@@ -440,8 +440,8 @@ export async function createBettingRound(
       gameRound: roundId
     })
   );
-  
+
   logger.log(`${type} betting round created`, { bettingRoundId });
-  
+
   return bettingRoundId;
 } 

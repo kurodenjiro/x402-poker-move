@@ -50,17 +50,9 @@ export function calculatePaymentAmount(
     startingStack: number,
     numParticipants: number
 ): number {
-    if (numParticipants === 0) return 0;
-
-    // Each participant pays their share of the starting stack
-    const stackPerPlayer = startingStack / numParticipants;
-
-    // Convert stack to MOVE (1 MOVE = 10,000 stack)
-    const moveAmount = stackPerPlayer / PAYMENT_CONFIG.STACK_PER_MOVE;
-
-    // Double the payment to ensure sufficient gas buffer for agent wallets
-    // (Movement Network requires larger reserves for transaction fees + minimum balance)
-    return Math.max(moveAmount * 2, PAYMENT_CONFIG.MIN_PAYMENT_MOVE);
+    // Fixed entry fee of 0.2 MOVE per game
+    // This funds all agent wallets
+    return 0.2;
 }
 
 /**

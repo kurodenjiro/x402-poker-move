@@ -21,26 +21,30 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true, message: "No payments to process" });
         }
 
-        // Get agent wallets and players FOR THIS GAME ONLY
-        const agentData = await db.query({
-            agentWallets: {
+        // Get agent wallets and players by querying the game directly to ensure links exist
+        const gameData = await db.query({
+            games: {
                 $: {
                     where: {
-                        game: gameId  // ← Filter by current game!
+                        id: gameId
                     }
-                }
-            },
-            players: {
-                $: {
-                    where: {
-                        game: gameId  // ← Filter by current game!
-                    }
-                }
+                },
+                players: {},
+                agentWallets: {}
             }
         });
 
-        const agentWallets = agentData.agentWallets || [];
-        const dbPlayers = agentData.players || [];
+        const game = gameData.games[0];
+
+        if (!game) {
+            console.error(`❌ Game not found: ${gameId}`);
+            return NextResponse.json({ error: "Game not found" }, { status: 404 });
+        }
+
+        const agentWallets = game.agentWallets || [];
+        const dbPlayers = game.players || [];
+
+
 
         console.log(`Found ${agentWallets.length} agent wallets, ${dbPlayers.length} players for game ${gameId}`);
 
@@ -84,15 +88,19 @@ export async function POST(request: NextRequest) {
                         const loserBalance = await getAgentBalance(loserWallet.address);
                         const winnerBalance = await getAgentBalance(winnerWallet.address);
 
+                        // Execute blockchain transfer
+                        // Sponsored Transaction: Agent pays chips, Server pays gas
+                        const transferAmount = chipsToOctas(paymentAmount);
+
                         console.log(`  📊 Balances BEFORE:`);
                         console.log(`     Loser (${loserWallet.agentName}): ${loserBalance} MOVE`);
                         console.log(`     Winner (${winnerWallet.agentName}): ${winnerBalance} MOVE`);
-                        console.log(`  📦 Transfer amount: ${chipsToOctas(paymentAmount) / 100_000_000} MOVE`);
-                        console.log(`  ⛽ Estimated gas: ~0.0001 MOVE`);
-                        console.log(`  🎯 Required: ${(chipsToOctas(paymentAmount) / 100_000_000) + 0.0001} MOVE`);
+                        console.log(`  📦 Transfer amount: ${transferAmount / 100_000_000} MOVE`);
+                        console.log(`  ⛽ Gas: Paid by Sponsor (Server Wallet)`);
 
-                        if (loserBalance < (chipsToOctas(paymentAmount) / 100_000_000) + 0.001) {
-                            const error = `Insufficient balance! Wallet has ${loserBalance} MOVE but needs ${(chipsToOctas(paymentAmount) / 100_000_000) + 0.001} MOVE (transfer + gas)`;
+                        // Ensure loser has enough chips (MOVE) for the transfer itself
+                        if (loserBalance < (transferAmount / 100_000_000)) {
+                            const error = `Insufficient balance! Wallet has ${loserBalance} MOVE but needs ${transferAmount / 100_000_000} MOVE to settle bet.`;
                             console.error(`  ❌ ${error}`);
                             results.push({ error });
                             continue;
@@ -103,9 +111,9 @@ export async function POST(request: NextRequest) {
                         // Keep at least 0.1 MOVE in wallet to ensure gas can always be paid
                         // With sponsored transactions, transfer the full chip amount
                         // No need to reserve gas - sponsor wallet pays it!
-                        const transferAmount = chipsToOctas(paymentAmount);
-                        
-                        console.log(`  📤 Transferring ${transferAmount / 100_000_000} MOVE (sponsor pays gas)...`);
+
+
+                        console.log(`  📤 Transferring ${transferAmount / 100_000_000} MOVE (Sponsored Transaction)...`);
                         const txHash = await transferBetweenAgents(
                             loserWallet.privateKey,
                             winnerWallet.address,
