@@ -10,7 +10,6 @@ import {
   CodeIcon,
 } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "motion/react";
-import DqnamoSignature from "./DqnamoSignature";
 import { CornerBorders } from "./GameSidebar";
 import { ReactNode, ComponentType } from "react";
 
@@ -337,8 +336,7 @@ function WelcomeStep({
 
       <div className="flex flex-row items-end justify-between">
         <div className="flex flex-col">
-          <p className="text-xs text-text-dim leading-relaxed">Built by</p>
-          <DqnamoSignature className="text-2xl!" />
+          <p className="text-xs text-text-dim leading-relaxed"></p>
         </div>
 
         <button
@@ -430,21 +428,19 @@ function ApiKeyStep({
             />
             <button
               onClick={() => setProvider("openrouter")}
-              className={`relative z-10 flex-1 px-2 py-2 text-xs transition-colors ${
-                provider === "openrouter"
-                  ? "text-text-bright"
-                  : "text-text-dim hover:text-text-medium"
-              }`}
+              className={`relative z-10 flex-1 px-2 py-2 text-xs transition-colors ${provider === "openrouter"
+                ? "text-text-bright"
+                : "text-text-dim hover:text-text-medium"
+                }`}
             >
               <span className="font-semibold">OpenRouter</span>
             </button>
             <button
               onClick={() => setProvider("vercel-ai-gateway")}
-              className={`relative z-10 flex-1 px-2 py-2 text-xs transition-colors ${
-                provider === "vercel-ai-gateway"
-                  ? "text-text-bright"
-                  : "text-text-dim hover:text-text-medium"
-              }`}
+              className={`relative z-10 flex-1 px-2 py-2 text-xs transition-colors ${provider === "vercel-ai-gateway"
+                ? "text-text-bright"
+                : "text-text-dim hover:text-text-medium"
+                }`}
             >
               <span className="font-semibold">Vercel AI Gateway</span>
             </button>
@@ -542,11 +538,10 @@ function ApiKeyStep({
           <button
             onClick={onSave}
             disabled={!apiKey.trim()}
-            className={`flex flex-row items-center gap-2 px-3 py-1.5 border transition-colors relative group ${
-              apiKey.trim()
-                ? "bg-green-900/50 border-green-800 text-green-300  cursor-pointer"
-                : "bg-dark-4 border-dark-6 text-text-dim cursor-not-allowed opacity-50"
-            }`}
+            className={`flex flex-row items-center gap-2 px-3 py-1.5 border transition-colors relative group ${apiKey.trim()
+              ? "bg-green-900/50 border-green-800 text-green-300  cursor-pointer"
+              : "bg-dark-4 border-dark-6 text-text-dim cursor-not-allowed opacity-50"
+              }`}
           >
             <AnimatedCornerBorders
               size={2}

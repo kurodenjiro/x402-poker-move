@@ -329,13 +329,13 @@ function AnalyticsTab({
                     fontSize: "10px",
                   }}
                   labelStyle={{ color: "var(--text-dim)", fontSize: "9px" }}
-                  formatter={(value: number, name: string) => [
+                  formatter={(value: any, name: any) => [
                     <span
                       key={`${name}-${value}`}
                       className="flex items-center gap-1 text-text-medium"
                     >
                       <span className="text-green-500">¤</span>
-                      <NumberFlow value={value} />
+                      <NumberFlow value={Number(value ?? 0)} />
                     </span>,
                     name,
                   ]}

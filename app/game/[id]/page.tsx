@@ -11,7 +11,6 @@ import {
   ArrowLeft,
   DiamondsFourIcon,
   ChartScatterIcon,
-  GithubLogoIcon,
 } from "@phosphor-icons/react";
 import { calculateEquity, EquityResult } from "poker-odds";
 import AnimatedFramedLink from "../../components/AnimatedFramedLink";
@@ -19,6 +18,7 @@ import AnimatedFramedLink from "../../components/AnimatedFramedLink";
 import GameSidebar, { CornerBorders } from "../../components/GameSidebar";
 import Footer from "../../components/Footer";
 import AgentPaymentProcessor from "../../components/AgentPaymentProcessor";
+import ThoughtBalloon from "../../components/ThoughtBalloon";
 
 // ID for app: LLM Poker
 const APP_ID = process.env.NEXT_PUBLIC_INSTANT_APP_ID || "";
@@ -267,13 +267,7 @@ export default function GamePage({
                     <ChartScatterIcon size={16} className="2xl:w-5 2xl:h-5" />
                     <p>History</p>
                   </AnimatedFramedLink>
-                  <AnimatedFramedLink
-                    href="https://github.com/dqnamo/llm-poker"
-                    target="_blank"
-                  >
-                    <GithubLogoIcon size={16} className="2xl:w-5 2xl:h-5" />
-                    <p>Github</p>
-                  </AnimatedFramedLink>
+
                 </div>
               </div>
 
@@ -490,6 +484,20 @@ const Player = ({
     }
   ) => void;
 }) => {
+  /* HOOKS MUST BE TOP LEVEL */
+  const [showBalloon, setShowBalloon] = useState(false);
+  const [currentThought, setCurrentThought] = useState("");
+
+  // Show reasoning after action
+  useEffect(() => {
+    if (lastAction?.reasoning) {
+      setCurrentThought(lastAction.reasoning);
+      setShowBalloon(true);
+      const timer = setTimeout(() => setShowBalloon(false), 8000); // Hide after 8 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [lastAction?.id, lastAction?.reasoning]);
+
   if (!player) {
     return <EmptySeat />;
   }
@@ -515,6 +523,8 @@ const Player = ({
     ? (playerEquity.wins / playerEquity.count) * 100
     : null;
 
+
+
   return (
     <div
       onClick={() => onSelect(player)}
@@ -522,6 +532,11 @@ const Player = ({
         } h-full min-h-[180px] 2xl:min-h-[240px] flex flex-col ${lastActionFolded ? "opacity-50" : ""
         } transition-colors cursor-pointer group`}
     >
+      <ThoughtBalloon
+        text={active ? "Thinking..." : currentThought}
+        isVisible={(showBalloon && !lastActionFolded) || (!!active && !player.name?.toLowerCase().includes("human"))}
+        position={player.name?.toLowerCase() === "human" ? "top" : "top"} // Can adjust per seat if needed
+      />
       <div className="relative grid grid-cols-1 divide-dark-5 flex-1 bg-dark-2 hover:bg-dark-3 transition-colors">
         <div className="flex flex-col lg:flex-row items-start gap-4 2xl:gap-6 justify-between p-4 2xl:p-6 h-full">
           <div className="flex flex-col">
