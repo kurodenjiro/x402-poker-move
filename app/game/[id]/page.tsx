@@ -20,7 +20,7 @@ import Footer from "../../components/Footer";
 import AgentPaymentProcessor from "../../components/AgentPaymentProcessor";
 import ThoughtBalloon from "../../components/ThoughtBalloon";
 
-// ID for app: LLM Poker
+// ID for app: X402 Poker
 const APP_ID = process.env.NEXT_PUBLIC_INSTANT_APP_ID || "";
 
 const db = init({ appId: APP_ID, schema });

@@ -197,7 +197,7 @@ function WelcomeStep({
         <div className="flex items-center gap-3">
           <div>
             <h1 className="text-md font-bold text-text-bright uppercase">
-              LLM Poker
+              X402 Poker
             </h1>
           </div>
         </div>

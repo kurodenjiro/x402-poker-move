@@ -27,7 +27,7 @@ import AnimatedFramedLink from "../../components/AnimatedFramedLink";
 import { CornerBorders } from "../../components/GameSidebar";
 import Footer from "../../components/Footer";
 
-// ID for app: LLM Poker
+// ID for app: X402 Poker
 const APP_ID = process.env.NEXT_PUBLIC_INSTANT_APP_ID || "";
 
 const db = init({ appId: APP_ID, schema });

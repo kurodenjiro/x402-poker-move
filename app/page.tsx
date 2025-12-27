@@ -246,7 +246,7 @@ export default function Home() {
           <div className="flex flex-col gap-1 2xl:gap-2">
             <div className="flex items-center gap-2 2xl:gap-3">
               <h1 className="text-sm 2xl:text-base font-semibold text-text-bright uppercase">
-                LLM Poker
+                X402 Poker
               </h1>
               <div className="text-xs 2xl:text-sm text-text-dim uppercase">
                 Configuration
@@ -471,7 +471,7 @@ const PokerTable = ({ selectedCount }: { selectedCount: number }) => {
               className={`text-sm 2xl:text-base font-semibold ${selectedCount === 6 ? "text-text-bright" : "text-text-medium"
                 }`}
             >
-              LLM Poker
+              X402 Poker
             </div>
             <div className="text-xs 2xl:text-sm text-text-dim">
               {selectedCount} / 6 seats configured

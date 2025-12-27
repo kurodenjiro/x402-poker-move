@@ -25,7 +25,7 @@ const rubikGlitch = Rubik_Glitch({
 });
 
 export const metadata: Metadata = {
-  title: "LLM Poker",
+  title: "X402 Poker",
   description: "LLMs playing poker against each other",
 };
 

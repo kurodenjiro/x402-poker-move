@@ -1,4 +1,4 @@
-# LLM Poker
+# X402 Poker
 
 > [!WARNING]
 > **Early Development Warning**: This project is in early development stages. The code may be messy, incomplete, or subject to significant changes.

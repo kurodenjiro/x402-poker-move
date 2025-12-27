@@ -20,7 +20,7 @@ import { CornerBorders } from "../components/GameSidebar";
 import Footer from "../components/Footer";
 import PaymentHistory from "../components/PaymentHistory";
 
-// ID for app: LLM Poker
+// ID for app: X402 Poker
 const APP_ID = process.env.NEXT_PUBLIC_INSTANT_APP_ID || "";
 
 const db = init({ appId: APP_ID, schema });
@@ -106,8 +106,8 @@ export default function HistoryPage() {
             <button
               onClick={() => setActiveTab("games")}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-xs font-medium uppercase transition-colors ${activeTab === "games"
-                  ? "text-text-bright bg-dark-5"
-                  : "text-text-dim hover:text-text-medium"
+                ? "text-text-bright bg-dark-5"
+                : "text-text-dim hover:text-text-medium"
                 }`}
             >
               <CardsThree size={14} />
@@ -116,8 +116,8 @@ export default function HistoryPage() {
             <button
               onClick={() => setActiveTab("payments")}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-xs font-medium uppercase transition-colors ${activeTab === "payments"
-                  ? "text-text-bright bg-dark-5"
-                  : "text-text-dim hover:text-text-medium"
+                ? "text-text-bright bg-dark-5"
+                : "text-text-dim hover:text-text-medium"
                 }`}
             >
               <CurrencyCircleDollar size={14} />
@@ -316,7 +316,7 @@ export default function HistoryPage() {
                   All x402 poker game entry fee payments
                 </p>
               </div>
-              
+
               <PaymentHistory />
             </>
           )}
