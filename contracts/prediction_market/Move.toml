@@ -1,0 +1,10 @@
+[package]
+name = "prediction_market"
+version = "0.0.1"
+authors = []
+
+[addresses]
+x402 = "_"
+
+[dependencies]
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework", rev = "aptos-release-v1.9" }

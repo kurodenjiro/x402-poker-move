@@ -19,6 +19,8 @@ import GameSidebar, { CornerBorders } from "../../components/GameSidebar";
 import Footer from "../../components/Footer";
 import AgentPaymentProcessor from "../../components/AgentPaymentProcessor";
 import ThoughtBalloon from "../../components/ThoughtBalloon";
+import BettingModal from "../../components/BettingModal";
+import { Target } from "@phosphor-icons/react";
 
 // ID for app: X402 Poker
 const APP_ID = process.env.NEXT_PUBLIC_INSTANT_APP_ID || "";
@@ -78,6 +80,7 @@ export default function GamePage({
     })
     | null
   >(null);
+  const [showBettingModal, setShowBettingModal] = useState(false);
 
   useEffect(() => {
     // check if current betting round is not preflop
@@ -263,6 +266,13 @@ export default function GamePage({
                   </p>
                 </div>
                 <div className="flex flex-row items-center gap-2 2xl:gap-3">
+                  <button
+                    onClick={() => setShowBettingModal(true)}
+                    className="flex items-center gap-2 px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs 2xl:text-sm font-medium rounded-lg transition-colors"
+                  >
+                    <Target size={16} className="2xl:w-5 2xl:h-5" weight="duotone" />
+                    <span>Place Bet</span>
+                  </button>
                   <AnimatedFramedLink href="/history">
                     <ChartScatterIcon size={16} className="2xl:w-5 2xl:h-5" />
                     <p>History</p>
@@ -423,6 +433,23 @@ export default function GamePage({
       <Footer />
       {/* Invisible component that watches for completed hands and triggers payments */}
       <AgentPaymentProcessor gameId={gameId} />
+
+      {/* Betting Modal */}
+      <BettingModal
+        isOpen={showBettingModal}
+        onClose={() => setShowBettingModal(false)}
+        gameId={gameId}
+        players={game.players
+          .filter(p => !p.name?.toLowerCase().includes("empty"))
+          .map((p, idx) => ({
+            seatIndex: idx,
+            name: p.name,
+          }))}
+        onBetPlaced={(txHash, seatIndex, amount) => {
+          console.log("Bet placed:", { txHash, seatIndex, amount });
+          setShowBettingModal(false);
+        }}
+      />
     </div>
   );
 }

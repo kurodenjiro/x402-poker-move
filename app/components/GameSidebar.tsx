@@ -21,10 +21,12 @@ import {
   ArrowLeft,
   DiamondsFourIcon,
   CurrencyCircleDollar,
+  Target,
 } from "@phosphor-icons/react";
 import { Reorder, motion } from "motion/react";
 import Card from "./Card";
 import GamePaymentFeed from "./GamePaymentFeed";
+import BettingTab from "./BettingTab";
 
 // Color palette for different players
 const PLAYER_COLORS = [
@@ -105,9 +107,28 @@ export default function GameSidebar({
   selectedPlayer,
   onPlayerSelect,
 }: GameSidebarProps) {
-  const [activeTab, setActiveTab] = useState<"analytics" | "players" | "payments">(
-    "players"
+  const [activeTab, setActiveTab] = useState<"analytics" | "players" | "payments" | "betting">(
+    "betting"
   );
+
+  // Determine winner (player with highest stack when game is complete)
+  const isGameComplete = (game.gameRounds?.length || 0) >= game.totalRounds;
+  const winnerSeatIndex = useMemo(() => {
+    if (!isGameComplete || !game.players?.length) return undefined;
+
+    // Find player with highest stack (excluding empty seats)
+    const activePlayers = game.players
+      .filter(p => !p.name?.toLowerCase().includes("empty"))
+      .map((p, idx) => ({ player: p, seatIndex: idx }));
+
+    if (activePlayers.length === 0) return undefined;
+
+    const winner = activePlayers.reduce((max, current) =>
+      (current.player.stack || 0) > (max.player.stack || 0) ? current : max
+    );
+
+    return winner.seatIndex;
+  }, [isGameComplete, game.players]);
 
   // Process transaction data for the chart
   const chartData = useMemo(() => {
@@ -191,10 +212,16 @@ export default function GameSidebar({
 
   const tabs = [
     {
+      id: "betting" as const,
+      label: "Betting",
+      icon: Target,
+      iconColorClass: "text-orange-500",
+    },
+    {
       id: "analytics" as const,
       label: "Analytics",
       icon: ChartLine,
-      iconColorClass: "text-orange-500",
+      iconColorClass: "text-purple-500",
     },
     {
       id: "players" as const,
@@ -249,6 +276,17 @@ export default function GameSidebar({
 
       {/* Tab Content */}
       <div className="overflow-y-auto flex-1">
+        {activeTab === "betting" && (
+          <BettingTab
+            gameId={game.id}
+            players={game.players
+              .filter(p => !p.name?.toLowerCase().includes("empty"))
+              .map((p, idx) => ({ seatIndex: idx, name: p.name }))
+            }
+            isGameComplete={isGameComplete}
+            winnerSeatIndex={winnerSeatIndex}
+          />
+        )}
         {activeTab === "analytics" && (
           <AnalyticsTab game={game} chartData={chartData} />
         )}
